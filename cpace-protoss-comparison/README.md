@@ -24,7 +24,8 @@ cargo run --bin benchmark --release
 ### C++ (libsodium)
 ```bash
 cd libsodium
-mkdir -p build
-g++ -O2 -Iexternal/libsodium-bin/include -Isrc benchmark/timing_benchmark.cpp src/protoss_protocol.cpp src/logger.cpp lib/crypto_cpace.c -Llib -lsodium -o build/benchmark.exe
+g++ -O2 -Iexternal/libsodium-bin/include -Isrc -Ilib benchmark/timing_benchmark.cpp src/protoss_protocol.cpp src/logger.cpp lib/crypto_cpace.c -Llib -lsodium -o build/benchmark.exe
 ./build/benchmark.exe
 ```
+
+Make sure `libsodium.dll` (from `/lib`) is in your PATH or next to the executable.
