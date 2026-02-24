@@ -33,7 +33,11 @@ g++ -O2 -Iexternal/libsodium-bin/include -Isrc benchmark/timing_benchmark.cpp sr
 
 # Run
 ./build/main.exe
+# Run (default: 10000 iterations, 10 runs)
 ./build/benchmark.exe
+
+# Run with custom iterations and number of runs
+./build/benchmark.exe 5000 5
 ```
 
 Make sure `libsodium.dll` (from `/lib`) is in your PATH or next to the executable.

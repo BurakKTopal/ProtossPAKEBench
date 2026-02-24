@@ -26,6 +26,9 @@ From the `dalek-rust/` directory:
 # Run the demo
 cargo run --bin protoss --release
 
-# Run the benchmark
+# Run the benchmark (default: 10000 iterations, 10 runs)
 cargo run --bin benchmark --release
+
+# Run with custom iterations and number of runs
+cargo run --bin benchmark --release -- 5000 5
 ```

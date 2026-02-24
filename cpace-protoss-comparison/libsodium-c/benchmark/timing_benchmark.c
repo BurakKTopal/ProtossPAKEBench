@@ -1,6 +1,8 @@
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <time.h>
 #include <sodium.h>
 #include "protoss_protocol.h"
@@ -30,6 +32,30 @@ static double timespec_diff_ns(struct timespec *start, struct timespec *end)
 {
     return (end->tv_sec - start->tv_sec) * 1e9 +
            (end->tv_nsec - start->tv_nsec);
+}
+
+static double calc_mean(double *values, int count)
+{
+    double sum = 0.0;
+    for (int i = 0; i < count; i++)
+    {
+        sum += values[i];
+    }
+    return sum / count;
+}
+
+static double calc_stddev(double *values, int count)
+{
+    if (count < 2)
+        return 0.0;
+    double m = calc_mean(values, count);
+    double sum_sq = 0.0;
+    for (int i = 0; i < count; i++)
+    {
+        double diff = values[i] - m;
+        sum_sq += diff * diff;
+    }
+    return sqrt(sum_sq / (count - 1));
 }
 
 void warmup_protoss(size_t warmup_iterations)
@@ -80,7 +106,9 @@ void warmup_cpace(size_t warmup_iterations)
     }
 }
 
-void benchmark_protoss(size_t iterations)
+// Returns per-run averages in microseconds via out parameters
+void benchmark_protoss(size_t iterations, size_t run_id,
+                       double *out_init, double *out_rspder, double *out_der)
 {
     logger_log(LOG_BENCHMARK, "Starting Protoss PAKE benchmark");
 
@@ -121,29 +149,14 @@ void benchmark_protoss(size_t iterations)
     }
 
     // Calculate averages in microseconds
-    double avg_init = (total_init_ns / iterations) / 1000.0;
-    double avg_rspder = (total_rspder_ns / iterations) / 1000.0;
-    double avg_der = (total_der_ns / iterations) / 1000.0;
-
-    // Log results
-    char results[1024];
-    snprintf(results, sizeof(results),
-             "Protoss PAKE Benchmark Results:\n"
-             "Average Init time: %.3f us\n"
-             "Average RspDer time: %.3f us\n"
-             "Average Der time: %.3f us\n"
-             "Total average time per protocol run: %.3f us",
-             avg_init, avg_rspder, avg_der,
-             avg_init + avg_rspder + avg_der);
-
-    logger_log(LOG_BENCHMARK, results);
-
-    // Also print to console
-    printf("\nBenchmarking Protoss PAKE (%zu iterations):\n", iterations);
-    printf("%s\n", results);
+    *out_init = (total_init_ns / iterations) / 1000.0;
+    *out_rspder = (total_rspder_ns / iterations) / 1000.0;
+    *out_der = (total_der_ns / iterations) / 1000.0;
 }
 
-void benchmark_cpace(size_t iterations)
+// Returns per-run averages in microseconds via out parameters
+void benchmark_cpace(size_t iterations, size_t run_id,
+                     double *out_step1, double *out_step2, double *out_step3)
 {
     logger_log(LOG_BENCHMARK, "Starting CPACE benchmark");
 
@@ -188,32 +201,24 @@ void benchmark_cpace(size_t iterations)
     }
 
     // Calculate averages in microseconds
-    double avg_step1 = (total_step1_ns / iterations) / 1000.0;
-    double avg_step2 = (total_step2_ns / iterations) / 1000.0;
-    double avg_step3 = (total_step3_ns / iterations) / 1000.0;
-
-    // Log results
-    char results[1024];
-    snprintf(results, sizeof(results),
-             "CPACE Benchmark Results:\n"
-             "Average Step 1 time: %.3f us\n"
-             "Average Step 2 time: %.3f us\n"
-             "Average Step 3 time: %.3f us\n"
-             "Total average time per protocol run: %.3f us",
-             avg_step1, avg_step2, avg_step3,
-             avg_step1 + avg_step2 + avg_step3);
-
-    logger_log(LOG_BENCHMARK, results);
-
-    // Also print to console
-    printf("\nBenchmarking CPACE (%zu iterations):\n", iterations);
-    printf("%s\n", results);
+    *out_step1 = (total_step1_ns / iterations) / 1000.0;
+    *out_step2 = (total_step2_ns / iterations) / 1000.0;
+    *out_step3 = (total_step3_ns / iterations) / 1000.0;
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
-    const size_t warmup_iterations = 5000;
-    const size_t benchmark_iterations = 50000;
+    size_t warmup_iterations = 5000;
+    size_t benchmark_iterations = 50000;
+    size_t num_runs = 10;
+
+    // Parse optional CLI arguments: [iterations] [num_runs] [warmup_iterations]
+    if (argc >= 2)
+        benchmark_iterations = atoi(argv[1]);
+    if (argc >= 3)
+        num_runs = atoi(argv[2]);
+    if (argc >= 4)
+        warmup_iterations = atoi(argv[3]);
 
     logger_log(LOG_BENCHMARK, "Starting PAKE Protocol Comparison Benchmark");
     printf("Starting PAKE Protocol Benchmarking\n");
@@ -230,10 +235,96 @@ int main(void)
     warmup_protoss(warmup_iterations);
     warmup_cpace(warmup_iterations);
 
-    // Main benchmark runs
-    printf("\nStarting main benchmark runs (%zu iterations)...\n", benchmark_iterations);
-    benchmark_protoss(benchmark_iterations);
-    benchmark_cpace(benchmark_iterations);
+    // Run the benchmark multiple times to average out external variability
+    printf("\nStarting main benchmark runs (%zu runs x %zu iterations)...\n", num_runs, benchmark_iterations);
+
+    double *protoss_init_runs = (double *)malloc(num_runs * sizeof(double));
+    double *protoss_rspder_runs = (double *)malloc(num_runs * sizeof(double));
+    double *protoss_der_runs = (double *)malloc(num_runs * sizeof(double));
+    double *protoss_total_runs = (double *)malloc(num_runs * sizeof(double));
+
+    double *cpace_step1_runs = (double *)malloc(num_runs * sizeof(double));
+    double *cpace_step2_runs = (double *)malloc(num_runs * sizeof(double));
+    double *cpace_step3_runs = (double *)malloc(num_runs * sizeof(double));
+    double *cpace_total_runs = (double *)malloc(num_runs * sizeof(double));
+
+    for (size_t r = 0; r < num_runs; r++)
+    {
+        printf("\n--- Run %zu of %zu ---\n", r + 1, num_runs);
+
+        double avg_init, avg_rspder, avg_der;
+        benchmark_protoss(benchmark_iterations, r + 1, &avg_init, &avg_rspder, &avg_der);
+        protoss_init_runs[r] = avg_init;
+        protoss_rspder_runs[r] = avg_rspder;
+        protoss_der_runs[r] = avg_der;
+        protoss_total_runs[r] = avg_init + avg_rspder + avg_der;
+
+        double avg_step1, avg_step2, avg_step3;
+        benchmark_cpace(benchmark_iterations, r + 1, &avg_step1, &avg_step2, &avg_step3);
+        cpace_step1_runs[r] = avg_step1;
+        cpace_step2_runs[r] = avg_step2;
+        cpace_step3_runs[r] = avg_step3;
+        cpace_total_runs[r] = avg_step1 + avg_step2 + avg_step3;
+    }
+
+    // Calculate mean and standard deviation across runs for Protoss
+    double mean_protoss_init = calc_mean(protoss_init_runs, num_runs);
+    double mean_protoss_rspder = calc_mean(protoss_rspder_runs, num_runs);
+    double mean_protoss_der = calc_mean(protoss_der_runs, num_runs);
+    double mean_protoss_total = calc_mean(protoss_total_runs, num_runs);
+
+    double std_protoss_init = calc_stddev(protoss_init_runs, num_runs);
+    double std_protoss_rspder = calc_stddev(protoss_rspder_runs, num_runs);
+    double std_protoss_der = calc_stddev(protoss_der_runs, num_runs);
+    double std_protoss_total = calc_stddev(protoss_total_runs, num_runs);
+
+    // Calculate mean and standard deviation across runs for CPace
+    double mean_cpace_step1 = calc_mean(cpace_step1_runs, num_runs);
+    double mean_cpace_step2 = calc_mean(cpace_step2_runs, num_runs);
+    double mean_cpace_step3 = calc_mean(cpace_step3_runs, num_runs);
+    double mean_cpace_total = calc_mean(cpace_total_runs, num_runs);
+
+    double std_cpace_step1 = calc_stddev(cpace_step1_runs, num_runs);
+    double std_cpace_step2 = calc_stddev(cpace_step2_runs, num_runs);
+    double std_cpace_step3 = calc_stddev(cpace_step3_runs, num_runs);
+    double std_cpace_total = calc_stddev(cpace_total_runs, num_runs);
+
+    free(protoss_init_runs); free(protoss_rspder_runs); free(protoss_der_runs); free(protoss_total_runs);
+    free(cpace_step1_runs); free(cpace_step2_runs); free(cpace_step3_runs); free(cpace_total_runs);
+
+    // Format and log Protoss results
+    char protoss_results[1024];
+    snprintf(protoss_results, sizeof(protoss_results),
+             "Protoss PAKE Benchmark Results (%zu iterations x %zu runs):\n"
+             "Average Init time: %.3f +/- %.3f us\n"
+             "Average RspDer time: %.3f +/- %.3f us\n"
+             "Average Der time: %.3f +/- %.3f us\n"
+             "Total average time per protocol run: %.3f +/- %.3f us",
+             benchmark_iterations, num_runs,
+             mean_protoss_init, std_protoss_init,
+             mean_protoss_rspder, std_protoss_rspder,
+             mean_protoss_der, std_protoss_der,
+             mean_protoss_total, std_protoss_total);
+
+    logger_log(LOG_BENCHMARK, protoss_results);
+    printf("\n%s\n", protoss_results);
+
+    // Format and log CPace results
+    char cpace_results[1024];
+    snprintf(cpace_results, sizeof(cpace_results),
+             "CPACE Benchmark Results (%zu iterations x %zu runs):\n"
+             "Average Step 1 time: %.3f +/- %.3f us\n"
+             "Average Step 2 time: %.3f +/- %.3f us\n"
+             "Average Step 3 time: %.3f +/- %.3f us\n"
+             "Total average time per protocol run: %.3f +/- %.3f us",
+             benchmark_iterations, num_runs,
+             mean_cpace_step1, std_cpace_step1,
+             mean_cpace_step2, std_cpace_step2,
+             mean_cpace_step3, std_cpace_step3,
+             mean_cpace_total, std_cpace_total);
+
+    logger_log(LOG_BENCHMARK, cpace_results);
+    printf("\n%s\n", cpace_results);
 
     // Save final results to file
     char filename[256];
@@ -244,14 +335,17 @@ int main(void)
     snprintf(filename, sizeof(filename),
              "benchmark_results_it%zu_%s.txt", benchmark_iterations, ts);
 
-    char final_results[512];
+    char final_results[4096];
     snprintf(final_results, sizeof(final_results),
              "PAKE Protocol Comparison Benchmark Results\n"
              "=========================================\n"
              "Warm-up iterations: %zu\n"
-             "Benchmark iterations: %zu\n\n"
-             "Results are logged in the benchmark log file.\n",
-             warmup_iterations, benchmark_iterations);
+             "Benchmark iterations: %zu\n"
+             "Number of runs: %zu\n\n"
+             "%s\n\n"
+             "%s\n",
+             warmup_iterations, benchmark_iterations, num_runs,
+             protoss_results, cpace_results);
 
     logger_log_to_file(filename, final_results);
     logger_log(LOG_BENCHMARK, "PAKE Protocol Comparison Benchmark completed");

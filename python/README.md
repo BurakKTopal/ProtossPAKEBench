@@ -28,6 +28,9 @@ From the `python/` directory:
 # Run the demo
 python src/main.py
 
-# Run the benchmark
+# Run the benchmark (default: 10000 iterations, 10 runs)
 python benchmark/timing_benchmark.py
+
+# Run with custom iterations and number of runs
+python benchmark/timing_benchmark.py 5000 5
 ```

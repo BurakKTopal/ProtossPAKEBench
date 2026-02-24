@@ -29,11 +29,16 @@ From the `libsodium-c/` directory:
 gcc -std=c11 -O2 -Iexternal/libsodium-bin/include -Isrc src/main.c src/protoss_protocol.c src/logger.c -Llib -lsodium -o build/main.exe
 
 # Build the benchmark
-gcc -std=c11 -O2 -Iexternal/libsodium-bin/include -Isrc benchmark/timing_benchmark.c src/protoss_protocol.c src/logger.c -Llib -lsodium -o build/benchmark.exe
+gcc -std=c11 -O2 -Iexternal/libsodium-bin/include -Isrc benchmark/timing_benchmark.c src/protoss_protocol.c src/logger.c -Llib -lsodium -lm -o build/benchmark.exe
 
 # Run
 ./build/main.exe
+
+# Run benchmark (default: 10000 iterations, 10 runs)
 ./build/benchmark.exe
+
+# Run with custom iterations and number of runs
+./build/benchmark.exe 5000 5
 ```
 
 Make sure `libsodium.dll` (from `/lib`) is in your PATH or next to the executable.
