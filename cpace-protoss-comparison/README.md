@@ -1,6 +1,6 @@
 # Protoss vs CPace — Performance Comparison
 
-Benchmarks comparing the Protoss and CPace PAKE protocols, implemented in both Rust (dalek) and C++ (libsodium).
+Benchmarks comparing the Protoss and CPace PAKE protocols, implemented in Rust (dalek), C++ (libsodium), and C (libsodium).
 
 ## Project Structure
 
@@ -12,6 +12,11 @@ Benchmarks comparing the Protoss and CPace PAKE protocols, implemented in both R
 - `/src` — Protoss protocol implementation (same as `libsodium-cpp/`)
 - `/lib` — Contains `crypto_cpace.c/.h` (CPace implementation) and `libsodium.dll`
 - `/benchmark/timing_benchmark.cpp` — Side-by-side Protoss vs CPace benchmark
+
+### `/libsodium-c` — C comparison
+- `/src` — Protoss protocol implementation (same as `libsodium-c/`)
+- `/lib` — Contains `crypto_cpace.c/.h` (CPace implementation) and `libsodium.dll`
+- `/benchmark/timing_benchmark.c` — Side-by-side Protoss vs CPace benchmark
 
 ## Running
 
@@ -25,6 +30,13 @@ cargo run --bin benchmark --release
 ```bash
 cd libsodium
 g++ -O2 -Iexternal/libsodium-bin/include -Isrc -Ilib benchmark/timing_benchmark.cpp src/protoss_protocol.cpp src/logger.cpp lib/crypto_cpace.c -Llib -lsodium -o build/benchmark.exe
+./build/benchmark.exe
+```
+
+### C (libsodium)
+```bash
+cd libsodium-c
+gcc -std=c11 -O2 -Iexternal/libsodium-bin/include -Isrc -Ilib benchmark/timing_benchmark.c src/protoss_protocol.c src/logger.c lib/cryptoare _cpace.c -Llib -lsodium -o build/benchmark.exe
 ./build/benchmark.exe
 ```
 
