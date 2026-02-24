@@ -241,14 +241,25 @@ int main(int argc, char *argv[])
         std::cout << "\n--- Run " << r << " of " << num_runs << " ---\n";
 
         double avg_init, avg_rspder, avg_der;
-        benchmark_protoss(benchmark_iterations, r, avg_init, avg_rspder, avg_der);
+        double avg_step1, avg_step2, avg_step3;
+
+        // Alternate order to avoid ordering bias
+        if (r % 2 == 1)
+        {
+            benchmark_protoss(benchmark_iterations, r, avg_init, avg_rspder, avg_der);
+            benchmark_cpace(benchmark_iterations, r, avg_step1, avg_step2, avg_step3);
+        }
+        else
+        {
+            benchmark_cpace(benchmark_iterations, r, avg_step1, avg_step2, avg_step3);
+            benchmark_protoss(benchmark_iterations, r, avg_init, avg_rspder, avg_der);
+        }
+
         protoss_init_runs.push_back(avg_init);
         protoss_rspder_runs.push_back(avg_rspder);
         protoss_der_runs.push_back(avg_der);
         protoss_total_runs.push_back(avg_init + avg_rspder + avg_der);
 
-        double avg_step1, avg_step2, avg_step3;
-        benchmark_cpace(benchmark_iterations, r, avg_step1, avg_step2, avg_step3);
         cpace_step1_runs.push_back(avg_step1);
         cpace_step2_runs.push_back(avg_step2);
         cpace_step3_runs.push_back(avg_step3);
@@ -287,7 +298,6 @@ int main(int argc, char *argv[])
     protoss_ss << "Total average time per protocol run: " << mean_protoss_total << " +/- " << std_protoss_total << " us";
 
     logger.log(LoggingKeyword::BENCHMARK, protoss_ss.str());
-    std::cout << "\n" << protoss_ss.str() << "\n";
 
     // Format and log CPace results
     std::stringstream cpace_ss;
@@ -299,7 +309,6 @@ int main(int argc, char *argv[])
     cpace_ss << "Total average time per protocol run: " << mean_cpace_total << " +/- " << std_cpace_total << " us";
 
     logger.log(LoggingKeyword::BENCHMARK, cpace_ss.str());
-    std::cout << "\n" << cpace_ss.str() << "\n";
 
     // Save final results to file
     auto now = std::time(nullptr);

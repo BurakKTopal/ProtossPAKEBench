@@ -221,17 +221,32 @@ fn main() {
     for r in 1..=num_runs {
         println!("\n--- Run {} of {} ---", r, num_runs);
 
-        let (avg_init, avg_rspder, avg_der) = benchmark_protoss(benchmark_iterations, r);
-        protoss_init_runs.push(avg_init);
-        protoss_rspder_runs.push(avg_rspder);
-        protoss_der_runs.push(avg_der);
-        protoss_total_runs.push(avg_init + avg_rspder + avg_der);
+        // Alternate order to avoid ordering bias
+        if r % 2 == 1 {
+            let (avg_init, avg_rspder, avg_der) = benchmark_protoss(benchmark_iterations, r);
+            protoss_init_runs.push(avg_init);
+            protoss_rspder_runs.push(avg_rspder);
+            protoss_der_runs.push(avg_der);
+            protoss_total_runs.push(avg_init + avg_rspder + avg_der);
 
-        let (avg_step1, avg_step2, avg_step3) = benchmark_cpace(benchmark_iterations, r);
-        cpace_step1_runs.push(avg_step1);
-        cpace_step2_runs.push(avg_step2);
-        cpace_step3_runs.push(avg_step3);
-        cpace_total_runs.push(avg_step1 + avg_step2 + avg_step3);
+            let (avg_step1, avg_step2, avg_step3) = benchmark_cpace(benchmark_iterations, r);
+            cpace_step1_runs.push(avg_step1);
+            cpace_step2_runs.push(avg_step2);
+            cpace_step3_runs.push(avg_step3);
+            cpace_total_runs.push(avg_step1 + avg_step2 + avg_step3);
+        } else {
+            let (avg_step1, avg_step2, avg_step3) = benchmark_cpace(benchmark_iterations, r);
+            cpace_step1_runs.push(avg_step1);
+            cpace_step2_runs.push(avg_step2);
+            cpace_step3_runs.push(avg_step3);
+            cpace_total_runs.push(avg_step1 + avg_step2 + avg_step3);
+
+            let (avg_init, avg_rspder, avg_der) = benchmark_protoss(benchmark_iterations, r);
+            protoss_init_runs.push(avg_init);
+            protoss_rspder_runs.push(avg_rspder);
+            protoss_der_runs.push(avg_der);
+            protoss_total_runs.push(avg_init + avg_rspder + avg_der);
+        }
     }
 
     // Calculate mean and standard deviation across runs for Protoss

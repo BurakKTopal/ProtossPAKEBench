@@ -1,6 +1,7 @@
 #include "logger.hpp"
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <ctime>
 #include <sstream>
 #include <filesystem>
@@ -63,6 +64,9 @@ void Logger::log(LoggingKeyword keyword, const std::string &description)
     }
     std::string log_entry = "[" + get_timestamp() + "] " + keyword_str + " : " + description;
     logs_.push_back(log_entry);
+
+    auto epoch = std::time(nullptr);
+    std::cout << "[" << keyword_str << " - " << epoch << "] " << description << std::endl;
 }
 
 void Logger::log_to_file(const std::string &filename, const std::string &content)

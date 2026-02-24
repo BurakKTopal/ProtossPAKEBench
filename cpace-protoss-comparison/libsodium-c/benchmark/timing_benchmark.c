@@ -110,7 +110,10 @@ void warmup_cpace(size_t warmup_iterations)
 void benchmark_protoss(size_t iterations, size_t run_id,
                        double *out_init, double *out_rspder, double *out_der)
 {
-    logger_log(LOG_BENCHMARK, "Starting Protoss PAKE benchmark");
+    char log_msg[256];
+    snprintf(log_msg, sizeof(log_msg),
+             "Run %zu: Starting Protoss PAKE benchmark with %zu iterations", run_id, iterations);
+    logger_log(LOG_BENCHMARK, log_msg);
 
     double total_init_ns = 0;
     double total_rspder_ns = 0;
@@ -158,7 +161,10 @@ void benchmark_protoss(size_t iterations, size_t run_id,
 void benchmark_cpace(size_t iterations, size_t run_id,
                      double *out_step1, double *out_step2, double *out_step3)
 {
-    logger_log(LOG_BENCHMARK, "Starting CPACE benchmark");
+    char log_msg[256];
+    snprintf(log_msg, sizeof(log_msg),
+             "Run %zu: Starting CPACE benchmark with %zu iterations", run_id, iterations);
+    logger_log(LOG_BENCHMARK, log_msg);
 
     double total_step1_ns = 0;
     double total_step2_ns = 0;
@@ -253,14 +259,25 @@ int main(int argc, char *argv[])
         printf("\n--- Run %zu of %zu ---\n", r + 1, num_runs);
 
         double avg_init, avg_rspder, avg_der;
-        benchmark_protoss(benchmark_iterations, r + 1, &avg_init, &avg_rspder, &avg_der);
+        double avg_step1, avg_step2, avg_step3;
+
+        // Alternate order to avoid ordering bias
+        if ((r + 1) % 2 == 1)
+        {
+            benchmark_protoss(benchmark_iterations, r + 1, &avg_init, &avg_rspder, &avg_der);
+            benchmark_cpace(benchmark_iterations, r + 1, &avg_step1, &avg_step2, &avg_step3);
+        }
+        else
+        {
+            benchmark_cpace(benchmark_iterations, r + 1, &avg_step1, &avg_step2, &avg_step3);
+            benchmark_protoss(benchmark_iterations, r + 1, &avg_init, &avg_rspder, &avg_der);
+        }
+
         protoss_init_runs[r] = avg_init;
         protoss_rspder_runs[r] = avg_rspder;
         protoss_der_runs[r] = avg_der;
         protoss_total_runs[r] = avg_init + avg_rspder + avg_der;
 
-        double avg_step1, avg_step2, avg_step3;
-        benchmark_cpace(benchmark_iterations, r + 1, &avg_step1, &avg_step2, &avg_step3);
         cpace_step1_runs[r] = avg_step1;
         cpace_step2_runs[r] = avg_step2;
         cpace_step3_runs[r] = avg_step3;
@@ -307,7 +324,6 @@ int main(int argc, char *argv[])
              mean_protoss_total, std_protoss_total);
 
     logger_log(LOG_BENCHMARK, protoss_results);
-    printf("\n%s\n", protoss_results);
 
     // Format and log CPace results
     char cpace_results[1024];
@@ -324,7 +340,6 @@ int main(int argc, char *argv[])
              mean_cpace_total, std_cpace_total);
 
     logger_log(LOG_BENCHMARK, cpace_results);
-    printf("\n%s\n", cpace_results);
 
     // Save final results to file
     char filename[256];

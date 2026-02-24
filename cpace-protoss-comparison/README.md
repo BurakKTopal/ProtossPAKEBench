@@ -23,6 +23,10 @@ Benchmarks comparing the Protoss and CPace PAKE protocols, implemented in Rust (
 All benchmarks accept optional CLI arguments: `[iterations] [num_runs] [warmup_iterations]`.
 Defaults: 50000 iterations, 10 runs, 5000 warmup iterations.
 
+### Note
+
+The execution order of Protoss and CPace alternates between runs to avoid ordering bias. Starting with Protoss - Cpace first.
+
 ### Rust (dalek)
 ```bash
 cd dalek

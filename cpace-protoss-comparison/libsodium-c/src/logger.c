@@ -48,6 +48,8 @@ void logger_log(LoggingKeyword keyword, const char *description)
     snprintf(logs[log_count], MAX_LOG_ENTRY_LEN,
              "[%s] %s : %s", ts, kw_str, description);
     log_count++;
+
+    printf("[%s - %lld] %s\n", kw_str, (long long)time(NULL), description);
 }
 
 void logger_log_to_file(const char *filename, const char *content)
