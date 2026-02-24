@@ -1,0 +1,23 @@
+[package]
+name = "protoss_rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sodiumoxide = "0.2.7"
+rand = "0.8.5"
+curve25519-dalek = { version = "4.1.1", features = ["digest"] }
+getrandom = "0.2.12"
+sha2 = "0.10.8"
+hex = "0.4.3"
+lazy_static = "1.4.0"
+chrono = "0.4.31"
+pake-cpace = "0.1.7"
+
+[[bin]]
+name = "protoss"
+path = "src/main.rs"
+
+[[bin]]
+name = "benchmark"
+path = "benchmark/pake_comparison.rs"
