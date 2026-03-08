@@ -7,10 +7,10 @@ int hash_to_point(unsigned char out[PROTOSS_POINT_LEN],
                   const char *password, size_t password_len)
 {
     unsigned char hash[PROTOSS_HASH_INPUT_LEN];
-    if (crypto_generichash(hash, sizeof(hash),
-                           (const unsigned char *)password, password_len,
-                           NULL, 0) != 0)
-        return -1;
+    crypto_hash_sha512_state st;
+    crypto_hash_sha512_init(&st);
+    crypto_hash_sha512_update(&st, (const unsigned char *)password, password_len);
+    crypto_hash_sha512_final(&st, hash);
 
     if (crypto_core_ristretto255_from_hash(out, hash) != 0)
         return -1;
@@ -18,7 +18,7 @@ int hash_to_point(unsigned char out[PROTOSS_POINT_LEN],
     return 0;
 }
 
-// Derive session key K = H'(Z, I, R, P_i, P_j, V) using streaming hash
+// Derive session key K = H'(Z, I, R, P_i, P_j, V) using streaming SHA-512
 static int derive_session_key(unsigned char K[PROTOSS_SESSION_KEY_LEN],
                               const unsigned char Z[PROTOSS_POINT_LEN],
                               const unsigned char I[PROTOSS_POINT_LEN],
@@ -27,17 +27,17 @@ static int derive_session_key(unsigned char K[PROTOSS_SESSION_KEY_LEN],
                               const unsigned char *P_j, size_t P_j_len,
                               const unsigned char V[PROTOSS_POINT_LEN])
 {
-    crypto_generichash_state h_state;
-    if (crypto_generichash_init(&h_state, NULL, 0, PROTOSS_SESSION_KEY_LEN) != 0)
-        return -1;
-    crypto_generichash_update(&h_state, Z, PROTOSS_POINT_LEN);
-    crypto_generichash_update(&h_state, I, PROTOSS_POINT_LEN);
-    crypto_generichash_update(&h_state, R, PROTOSS_POINT_LEN);
-    crypto_generichash_update(&h_state, P_i, P_i_len);
-    crypto_generichash_update(&h_state, P_j, P_j_len);
-    crypto_generichash_update(&h_state, V, PROTOSS_POINT_LEN);
-    if (crypto_generichash_final(&h_state, K, PROTOSS_SESSION_KEY_LEN) != 0)
-        return -1;
+    crypto_hash_sha512_state st;
+    unsigned char h[crypto_hash_sha512_BYTES];
+    crypto_hash_sha512_init(&st);
+    crypto_hash_sha512_update(&st, Z, PROTOSS_POINT_LEN);
+    crypto_hash_sha512_update(&st, I, PROTOSS_POINT_LEN);
+    crypto_hash_sha512_update(&st, R, PROTOSS_POINT_LEN);
+    crypto_hash_sha512_update(&st, P_i, P_i_len);
+    crypto_hash_sha512_update(&st, P_j, P_j_len);
+    crypto_hash_sha512_update(&st, V, PROTOSS_POINT_LEN);
+    crypto_hash_sha512_final(&st, h);
+    memcpy(K, h, PROTOSS_SESSION_KEY_LEN);
     return 0;
 }
 

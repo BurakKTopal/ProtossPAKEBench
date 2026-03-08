@@ -5,8 +5,8 @@
 std::vector<unsigned char> hash_to_point(const std::string &password)
 {
     std::vector<unsigned char> hash(INPUT_LEN_RISTRETTO_HASH_TO_POINT, 0);
-    if (crypto_generichash(hash.data(), hash.size(), (const unsigned char *)password.data(), password.size(), nullptr, 0) != 0)
-        throw std::runtime_error("crypto_generichash failed");
+    if (crypto_hash_sha512(hash.data(), (const unsigned char *)password.data(), password.size()) != 0)
+        throw std::runtime_error("crypto_hash_sha512 failed");
 
     std::vector<unsigned char> point(POINT_LEN, 0);
     if (crypto_core_ristretto255_from_hash(point.data(), hash.data()) != 0)
@@ -79,10 +79,11 @@ ReturnTypeRspDer RspDer(const std::string &password, const std::vector<unsigned 
         throw std::runtime_error("crypto_scalarmult_ristretto255 failed");
 
     // Calculates K = H'(Z, I, R, P_i, P_j, V)
-    std::vector<unsigned char> K(SESSION_KEY_LEN);
     auto concat = concatenate_vectors({Z, I, R, P_i, P_j, V});
-    if (crypto_generichash(K.data(), K.size(), concat.data(), concat.size(), nullptr, 0) != 0)
-        throw std::runtime_error("crypto_generichash failed");
+    std::vector<unsigned char> full_hash(crypto_hash_sha512_BYTES);
+    if (crypto_hash_sha512(full_hash.data(), concat.data(), concat.size()) != 0)
+        throw std::runtime_error("crypto_hash_sha512 failed");
+    std::vector<unsigned char> K(full_hash.begin(), full_hash.begin() + SESSION_KEY_LEN);
 
     return ReturnTypeRspDer(R, K);
 }
@@ -104,10 +105,11 @@ std::vector<unsigned char> Der(const std::string &password, ProtossState protoss
         throw std::runtime_error("crypto_scalarmult_ristretto255 failed");
 
     // Calculates K = H'(Z, I, R, P_i, P_j, V)
-    std::vector<unsigned char> K(SESSION_KEY_LEN);
     auto concat = concatenate_vectors({Z, I, R, P_i, P_j, V});
-    if (crypto_generichash(K.data(), K.size(), concat.data(), concat.size(), nullptr, 0) != 0)
-        throw std::runtime_error("crypto_generichash failed");
+    std::vector<unsigned char> full_hash(crypto_hash_sha512_BYTES);
+    if (crypto_hash_sha512(full_hash.data(), concat.data(), concat.size()) != 0)
+        throw std::runtime_error("crypto_hash_sha512 failed");
+    std::vector<unsigned char> K(full_hash.begin(), full_hash.begin() + SESSION_KEY_LEN);
 
     return K;
 }
