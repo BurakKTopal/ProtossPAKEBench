@@ -5,7 +5,7 @@ Implementation of Protoss in C (libsodium), C++ (libsodium), Rust (Dalek), and P
 For the theoretical details of Protoss, refer to [Protoss paper](./ProtossPaper.pdf) by Di Giandomenico, E., Li, Y. and Schäge, S.
 
 ## Structure
-- `libsodium-c/`: C implementation of Protoss using libsodium's Ristretto255 operations. Benchmarking code provided.
+- `libsodium-c/`: C implementation of Protoss using libsodium's Ristretto255 operations. Includes protocol variants (point validation, state orchestration, precomputation) and benchmarking code.
 - `libsodium-cpp/`: C++ implementation of Protoss using libsodium. Benchmarking code provided.
 - `dalek-rust/`: Rust implementation of Protoss using curve25519-dalek. Benchmarking code provided.
 - `python/`: Python implementation of Protoss via ctypes bindings with libsodium. Benchmarking code provided.
