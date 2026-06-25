@@ -6,7 +6,7 @@
 // State structure for orchestrated variant
 typedef struct
 {
-    unsigned char x[PROTOSS_SCALAR_LEN];
+    unsigned char secret_scalar[PROTOSS_SCALAR_LEN];
     unsigned char I[PROTOSS_POINT_LEN];
     unsigned char P_i[PROTOSS_MAX_ID_LEN];
     unsigned char P_j[PROTOSS_MAX_ID_LEN];
@@ -25,19 +25,19 @@ void protoss_orchestrated_state_destroy(ProtossOrchestratedState *state);
 
 // Initialize protocol (Step 1) - fills state directly by reference
 int orchestrated_Init(unsigned char I_out[PROTOSS_POINT_LEN],
-                      ProtossOrchestratedState *state,
+                      ProtossOrchestratedState *state, // initiator's state
                       const char *password, size_t password_len);
 
 // Response and key derivation (Step 2) - fills state directly by reference
 int orchestrated_RspDer(unsigned char R_out[PROTOSS_POINT_LEN],
                         unsigned char K[PROTOSS_SESSION_KEY_LEN],
-                        ProtossOrchestratedState *state,
+                        ProtossOrchestratedState *state, // responder's state
                         const char *password, size_t password_len,
                         const unsigned char I[PROTOSS_POINT_LEN]);
 
 // Key derivation (Step 3)
 int orchestrated_Der(unsigned char K[PROTOSS_SESSION_KEY_LEN],
-                     const ProtossOrchestratedState *state,
+                     const ProtossOrchestratedState *state, // initiator's state (same as Init)
                      const unsigned char R[PROTOSS_POINT_LEN]);
 
 #endif // PROTOSS_ORCHESTRATED_H

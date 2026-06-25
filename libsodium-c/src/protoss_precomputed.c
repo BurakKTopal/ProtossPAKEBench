@@ -15,8 +15,8 @@ int protoss_precomputed_state_create(ProtossPrecomputedState *state,
     state->P_j_len = P_j_len;
 
     // choose random scalar in Z_p and compute g^scalar
-    crypto_core_ristretto255_scalar_random(state->scalar);
-    if (crypto_scalarmult_ristretto255_base(state->public_point, state->scalar) != 0)
+    crypto_core_ristretto255_scalar_random(state->secret_scalar);
+    if (crypto_scalarmult_ristretto255_base(state->public_point, state->secret_scalar) != 0)
         return -1;
 
     return 0;
@@ -68,7 +68,7 @@ int precomputed_RspDer(unsigned char R_out[PROTOSS_POINT_LEN],
         return -1;
 
     // Calculates Z = (X')^y ~> y*X' in elliptic curve calculations
-    if (crypto_scalarmult_ristretto255(Z, state->scalar, X_prime) != 0)
+    if (crypto_scalarmult_ristretto255(Z, state->secret_scalar, X_prime) != 0)
         return -1;
 
     // Calculates K = H'(Z, I, R, P_i, P_j, V)
@@ -78,7 +78,6 @@ int precomputed_RspDer(unsigned char R_out[PROTOSS_POINT_LEN],
                                    state->V) != 0)
         return -1;
 
-    memcpy(state->I, R, PROTOSS_POINT_LEN);
     memcpy(R_out, R, PROTOSS_POINT_LEN);
 
     return 0;
@@ -96,7 +95,7 @@ int precomputed_Der(unsigned char K[PROTOSS_SESSION_KEY_LEN],
         return -1;
 
     // Calculates Z = (Y')^x ~> x*Y' in elliptic curve calculations
-    if (crypto_scalarmult_ristretto255(Z, state->scalar, Y_prime) != 0)
+    if (crypto_scalarmult_ristretto255(Z, state->secret_scalar, Y_prime) != 0)
         return -1;
 
     // Calculates K = H'(Z, I, R, P_i, P_j, V)

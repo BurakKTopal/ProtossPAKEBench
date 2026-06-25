@@ -38,229 +38,196 @@ static double calc_stddev(double *values, int count)
     return sqrt(sum_sq / (count - 1));
 }
 
+static const char *g_password = "SharedPassword";
+static unsigned char g_P_i[] = {0x00};
+static unsigned char g_P_j[] = {0x01};
+
 // ============================================================
-// Baseline benchmark
+// Per-iteration timing functions
+// Each times a single protocol round and accumulates into the
+// provided per-phase totals. They return 0 on success, -1 on
+// failure, and write 1 to *mismatch if the derived keys differ.
 // ============================================================
-int run_baseline(int iterations, int run_id, int is_warmup,
-                 double *out_init, double *out_rspder, double *out_der)
+static int bench_baseline_once(double *init_t, double *rspder_t, double *der_t, int *mismatch)
 {
-    const char *password = "SharedPassword";
-    unsigned char P_i[] = {0x00};
-    unsigned char P_j[] = {0x01};
+    ReturnTypeInit res_init;
+    ReturnTypeRspDer res_rspder;
+    unsigned char K_i[PROTOSS_SESSION_KEY_LEN];
+    struct timespec start, end;
+    size_t pw = strlen(g_password);
 
-    double init_time = 0.0, rspder_time = 0.0, der_time = 0.0;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (Init(&res_init, g_password, pw, g_P_i, 1, g_P_j, 1) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *init_t += timespec_diff_ms(&start, &end);
 
-    for (int i = 0; i < iterations; i++)
-    {
-        ReturnTypeInit res_init;
-        ReturnTypeRspDer res_rspder;
-        unsigned char K_i[PROTOSS_SESSION_KEY_LEN];
-        struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (RspDer(&res_rspder, g_password, pw, g_P_i, 1, g_P_j, 1, res_init.I) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *rspder_t += timespec_diff_ms(&start, &end);
 
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (Init(&res_init, password, strlen(password), P_i, 1, P_j, 1) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        init_time += timespec_diff_ms(&start, &end);
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (Der(K_i, &res_init.state, res_rspder.R) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *der_t += timespec_diff_ms(&start, &end);
 
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (RspDer(&res_rspder, password, strlen(password), P_i, 1, P_j, 1, res_init.I) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        rspder_time += timespec_diff_ms(&start, &end);
+    if (memcmp(K_i, res_rspder.K, PROTOSS_SESSION_KEY_LEN) != 0)
+        *mismatch = 1;
+    return 0;
+}
 
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (Der(K_i, &res_init.state, res_rspder.R) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        der_time += timespec_diff_ms(&start, &end);
+static int bench_validated_once(double *init_t, double *rspder_t, double *der_t, int *mismatch)
+{
+    ValidatedReturnTypeInit res_init;
+    ValidatedReturnTypeRspDer res_rspder;
+    unsigned char K_i[PROTOSS_SESSION_KEY_LEN];
+    struct timespec start, end;
+    size_t pw = strlen(g_password);
 
-        if (i == 0 && run_id == 1 && !is_warmup)
-        {
-            if (memcmp(K_i, res_rspder.K, PROTOSS_SESSION_KEY_LEN) != 0)
-                fprintf(stderr, "ERROR [Baseline]: Session keys don't match!\n");
-        }
-    }
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (validated_Init(&res_init, g_password, pw, g_P_i, 1, g_P_j, 1) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *init_t += timespec_diff_ms(&start, &end);
 
-    *out_init = init_time / iterations;
-    *out_rspder = rspder_time / iterations;
-    *out_der = der_time / iterations;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (validated_RspDer(&res_rspder, g_password, pw, g_P_i, 1, g_P_j, 1, res_init.I) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *rspder_t += timespec_diff_ms(&start, &end);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (validated_Der(K_i, &res_init.state, res_rspder.R) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *der_t += timespec_diff_ms(&start, &end);
+
+    if (memcmp(K_i, res_rspder.K, PROTOSS_SESSION_KEY_LEN) != 0)
+        *mismatch = 1;
+    return 0;
+}
+
+static int bench_orchestrated_once(double *init_t, double *rspder_t, double *der_t, int *mismatch)
+{
+    ProtossOrchestratedState init_state, rsp_state;
+    unsigned char I_out[PROTOSS_POINT_LEN];
+    unsigned char R_out[PROTOSS_POINT_LEN];
+    unsigned char K_init[PROTOSS_SESSION_KEY_LEN];
+    unsigned char K_rsp[PROTOSS_SESSION_KEY_LEN];
+    struct timespec start, end;
+    size_t pw = strlen(g_password);
+
+    protoss_orchestrated_state_create(&init_state, g_P_i, 1, g_P_j, 1);
+    protoss_orchestrated_state_create(&rsp_state, g_P_i, 1, g_P_j, 1);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (orchestrated_Init(I_out, &init_state, g_password, pw) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *init_t += timespec_diff_ms(&start, &end);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (orchestrated_RspDer(R_out, K_rsp, &rsp_state, g_password, pw, I_out) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *rspder_t += timespec_diff_ms(&start, &end);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (orchestrated_Der(K_init, &init_state, R_out) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *der_t += timespec_diff_ms(&start, &end);
+
+    if (memcmp(K_init, K_rsp, PROTOSS_SESSION_KEY_LEN) != 0)
+        *mismatch = 1;
+
+    protoss_orchestrated_state_destroy(&init_state);
+    protoss_orchestrated_state_destroy(&rsp_state);
+    return 0;
+}
+
+static int bench_precomputed_once(double *precompute_t, double *init_t, double *rspder_t, double *der_t, int *mismatch)
+{
+    ProtossPrecomputedState init_state, rsp_state;
+    unsigned char I_out[PROTOSS_POINT_LEN];
+    unsigned char R_out[PROTOSS_POINT_LEN];
+    unsigned char K_init[PROTOSS_SESSION_KEY_LEN];
+    unsigned char K_rsp[PROTOSS_SESSION_KEY_LEN];
+    struct timespec start, end;
+    size_t pw = strlen(g_password);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (protoss_precomputed_state_create(&init_state, g_P_i, 1, g_P_j, 1) != 0)
+        return -1;
+    if (protoss_precomputed_state_create(&rsp_state, g_P_i, 1, g_P_j, 1) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *precompute_t += timespec_diff_ms(&start, &end);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (precomputed_Init(I_out, &init_state, g_password, pw) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *init_t += timespec_diff_ms(&start, &end);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (precomputed_RspDer(R_out, K_rsp, &rsp_state, g_password, pw, I_out) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *rspder_t += timespec_diff_ms(&start, &end);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (precomputed_Der(K_init, &init_state, R_out) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    *der_t += timespec_diff_ms(&start, &end);
+
+    if (memcmp(K_init, K_rsp, PROTOSS_SESSION_KEY_LEN) != 0)
+        *mismatch = 1;
+
+    protoss_precomputed_state_destroy(&init_state);
+    protoss_precomputed_state_destroy(&rsp_state);
     return 0;
 }
 
 // ============================================================
-// Validated benchmark
+// One full run: rotates through all four variants every
+// iteration so that transient CPU-load spikes are spread evenly
+// across the variants rather than concentrated in one block.
+// Writes per-variant, per-phase averages for this run.
 // ============================================================
-int run_validated(int iterations, int run_id, int is_warmup,
-                  double *out_init, double *out_rspder, double *out_der)
+static int run_rotated(int iterations,
+                       double *bl_init, double *bl_rspder, double *bl_der,
+                       double *vl_init, double *vl_rspder, double *vl_der,
+                       double *or_init, double *or_rspder, double *or_der,
+                       double *pc_precomp, double *pc_init, double *pc_rspder, double *pc_der,
+                       int *mismatch)
 {
-    const char *password = "SharedPassword";
-    unsigned char P_i[] = {0x00};
-    unsigned char P_j[] = {0x01};
-
-    double init_time = 0.0, rspder_time = 0.0, der_time = 0.0;
+    double bl_i = 0, bl_r = 0, bl_d = 0;
+    double vl_i = 0, vl_r = 0, vl_d = 0;
+    double or_i = 0, or_r = 0, or_d = 0;
+    double pc_p = 0, pc_i = 0, pc_r = 0, pc_d = 0;
 
     for (int i = 0; i < iterations; i++)
     {
-        ValidatedReturnTypeInit res_init;
-        ValidatedReturnTypeRspDer res_rspder;
-        unsigned char K_i[PROTOSS_SESSION_KEY_LEN];
-        struct timespec start, end;
-
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (validated_Init(&res_init, password, strlen(password), P_i, 1, P_j, 1) != 0)
+        if (bench_baseline_once(&bl_i, &bl_r, &bl_d, mismatch) != 0)
             return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        init_time += timespec_diff_ms(&start, &end);
-
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (validated_RspDer(&res_rspder, password, strlen(password), P_i, 1, P_j, 1, res_init.I) != 0)
+        if (bench_validated_once(&vl_i, &vl_r, &vl_d, mismatch) != 0)
             return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        rspder_time += timespec_diff_ms(&start, &end);
-
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (validated_Der(K_i, &res_init.state, res_rspder.R) != 0)
+        if (bench_orchestrated_once(&or_i, &or_r, &or_d, mismatch) != 0)
             return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        der_time += timespec_diff_ms(&start, &end);
-
-        if (i == 0 && run_id == 1 && !is_warmup)
-        {
-            if (memcmp(K_i, res_rspder.K, PROTOSS_SESSION_KEY_LEN) != 0)
-                fprintf(stderr, "ERROR [Validated]: Session keys don't match!\n");
-        }
+        if (bench_precomputed_once(&pc_p, &pc_i, &pc_r, &pc_d, mismatch) != 0)
+            return -1;
     }
 
-    *out_init = init_time / iterations;
-    *out_rspder = rspder_time / iterations;
-    *out_der = der_time / iterations;
-    return 0;
-}
-
-// ============================================================
-// Orchestrated benchmark
-// ============================================================
-int run_orchestrated(int iterations, int run_id, int is_warmup,
-                     double *out_init, double *out_rspder, double *out_der)
-{
-    const char *password = "SharedPassword";
-    unsigned char P_i[] = {0x00};
-    unsigned char P_j[] = {0x01};
-
-    double init_time = 0.0, rspder_time = 0.0, der_time = 0.0;
-
-    for (int i = 0; i < iterations; i++)
-    {
-        ProtossOrchestratedState init_state, rsp_state;
-        unsigned char I_out[PROTOSS_POINT_LEN];
-        unsigned char R_out[PROTOSS_POINT_LEN];
-        unsigned char K_init[PROTOSS_SESSION_KEY_LEN];
-        unsigned char K_rsp[PROTOSS_SESSION_KEY_LEN];
-        struct timespec start, end;
-
-        // State creation happens before the protocol begins
-        protoss_orchestrated_state_create(&init_state, P_i, 1, P_j, 1);
-        protoss_orchestrated_state_create(&rsp_state, P_i, 1, P_j, 1);
-
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (orchestrated_Init(I_out, &init_state, password, strlen(password)) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        init_time += timespec_diff_ms(&start, &end);
-
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (orchestrated_RspDer(R_out, K_rsp, &rsp_state, password, strlen(password), I_out) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        rspder_time += timespec_diff_ms(&start, &end);
-
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (orchestrated_Der(K_init, &init_state, R_out) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        der_time += timespec_diff_ms(&start, &end);
-
-        if (i == 0 && run_id == 1 && !is_warmup)
-        {
-            if (memcmp(K_init, K_rsp, PROTOSS_SESSION_KEY_LEN) != 0)
-                fprintf(stderr, "ERROR [Orchestrated]: Session keys don't match!\n");
-        }
-
-        protoss_orchestrated_state_destroy(&init_state);
-        protoss_orchestrated_state_destroy(&rsp_state);
-    }
-
-    *out_init = init_time / iterations;
-    *out_rspder = rspder_time / iterations;
-    *out_der = der_time / iterations;
-    return 0;
-}
-
-// ============================================================
-// Precomputed benchmark
-// ============================================================
-int run_precomputed(int iterations, int run_id, int is_warmup,
-                    double *out_precompute, double *out_init, double *out_rspder, double *out_der)
-{
-    const char *password = "SharedPassword";
-    unsigned char P_i[] = {0x00};
-    unsigned char P_j[] = {0x01};
-
-    double precompute_time = 0.0;
-    double init_time = 0.0, rspder_time = 0.0, der_time = 0.0;
-
-    for (int i = 0; i < iterations; i++)
-    {
-        ProtossPrecomputedState init_state, rsp_state;
-        unsigned char I_out[PROTOSS_POINT_LEN];
-        unsigned char R_out[PROTOSS_POINT_LEN];
-        unsigned char K_init[PROTOSS_SESSION_KEY_LEN];
-        unsigned char K_rsp[PROTOSS_SESSION_KEY_LEN];
-        struct timespec start, end;
-
-        // Time precomputation separately
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (protoss_precomputed_state_create(&init_state, P_i, 1, P_j, 1) != 0)
-            return -1;
-        if (protoss_precomputed_state_create(&rsp_state, P_i, 1, P_j, 1) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        precompute_time += timespec_diff_ms(&start, &end);
-
-        // Time protocol steps (without precomputation cost)
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (precomputed_Init(I_out, &init_state, password, strlen(password)) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        init_time += timespec_diff_ms(&start, &end);
-
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (precomputed_RspDer(R_out, K_rsp, &rsp_state, password, strlen(password), I_out) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        rspder_time += timespec_diff_ms(&start, &end);
-
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        if (precomputed_Der(K_init, &init_state, R_out) != 0)
-            return -1;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        der_time += timespec_diff_ms(&start, &end);
-
-        if (i == 0 && run_id == 1 && !is_warmup)
-        {
-            if (memcmp(K_init, K_rsp, PROTOSS_SESSION_KEY_LEN) != 0)
-                fprintf(stderr, "ERROR [Precomputed]: Session keys don't match!\n");
-        }
-
-        protoss_precomputed_state_destroy(&init_state);
-        protoss_precomputed_state_destroy(&rsp_state);
-    }
-
-    *out_precompute = precompute_time / iterations;
-    *out_init = init_time / iterations;
-    *out_rspder = rspder_time / iterations;
-    *out_der = der_time / iterations;
+    *bl_init = bl_i / iterations; *bl_rspder = bl_r / iterations; *bl_der = bl_d / iterations;
+    *vl_init = vl_i / iterations; *vl_rspder = vl_r / iterations; *vl_der = vl_d / iterations;
+    *or_init = or_i / iterations; *or_rspder = or_r / iterations; *or_der = or_d / iterations;
+    *pc_precomp = pc_p / iterations;
+    *pc_init = pc_i / iterations; *pc_rspder = pc_r / iterations; *pc_der = pc_d / iterations;
     return 0;
 }
 
@@ -287,16 +254,15 @@ int main(int argc, char *argv[])
 
     printf("Protoss Protocol Variant Comparison Benchmark\n");
     printf("==============================================\n");
-    printf("Config: %d iterations x %d runs\n\n", iterations, num_runs);
+    printf("Config: %d iterations x %d runs (iteration-level rotation)\n\n", iterations, num_runs);
 
-    // Warmup all variants
+    // Warmup: a short rotated run, results discarded
     printf("Performing warmup...\n");
     {
-        double d1, d2, d3, d4;
-        run_baseline(100, 0, 1, &d1, &d2, &d3);
-        run_validated(100, 0, 1, &d1, &d2, &d3);
-        run_orchestrated(100, 0, 1, &d1, &d2, &d3);
-        run_precomputed(100, 0, 1, &d4, &d1, &d2, &d3);
+        double d[14]; int dm = 0;
+        run_rotated(100,
+                    &d[0], &d[1], &d[2], &d[3], &d[4], &d[5], &d[6], &d[7], &d[8],
+                    &d[9], &d[10], &d[11], &d[12], &dm);
     }
     printf("Warmup complete.\n\n");
 
@@ -318,36 +284,25 @@ int main(int argc, char *argv[])
     double *pc_rspder  = malloc(num_runs * sizeof(double));
     double *pc_der     = malloc(num_runs * sizeof(double));
 
-    // Run benchmarks with alternating order
+    int mismatch = 0;
+
     for (int r = 0; r < num_runs; r++)
     {
         printf("Run %d/%d...\n", r + 1, num_runs);
-
-        if (r % 2 == 0)
+        if (run_rotated(iterations,
+                        &bl_init[r], &bl_rspder[r], &bl_der[r],
+                        &vl_init[r], &vl_rspder[r], &vl_der[r],
+                        &or_init[r], &or_rspder[r], &or_der[r],
+                        &pc_precomp[r], &pc_init[r], &pc_rspder[r], &pc_der[r],
+                        &mismatch) != 0)
         {
-            // Order: baseline -> validated -> orchestrated -> precomputed
-            if (run_baseline(iterations, r + 1, 0, &bl_init[r], &bl_rspder[r], &bl_der[r]) != 0)
-            { fprintf(stderr, "Baseline failed on run %d\n", r + 1); return 1; }
-            if (run_validated(iterations, r + 1, 0, &vl_init[r], &vl_rspder[r], &vl_der[r]) != 0)
-            { fprintf(stderr, "Validated failed on run %d\n", r + 1); return 1; }
-            if (run_orchestrated(iterations, r + 1, 0, &or_init[r], &or_rspder[r], &or_der[r]) != 0)
-            { fprintf(stderr, "Orchestrated failed on run %d\n", r + 1); return 1; }
-            if (run_precomputed(iterations, r + 1, 0, &pc_precomp[r], &pc_init[r], &pc_rspder[r], &pc_der[r]) != 0)
-            { fprintf(stderr, "Precomputed failed on run %d\n", r + 1); return 1; }
-        }
-        else
-        {
-            // Reverse order: precomputed -> orchestrated -> validated -> baseline
-            if (run_precomputed(iterations, r + 1, 0, &pc_precomp[r], &pc_init[r], &pc_rspder[r], &pc_der[r]) != 0)
-            { fprintf(stderr, "Precomputed failed on run %d\n", r + 1); return 1; }
-            if (run_orchestrated(iterations, r + 1, 0, &or_init[r], &or_rspder[r], &or_der[r]) != 0)
-            { fprintf(stderr, "Orchestrated failed on run %d\n", r + 1); return 1; }
-            if (run_validated(iterations, r + 1, 0, &vl_init[r], &vl_rspder[r], &vl_der[r]) != 0)
-            { fprintf(stderr, "Validated failed on run %d\n", r + 1); return 1; }
-            if (run_baseline(iterations, r + 1, 0, &bl_init[r], &bl_rspder[r], &bl_der[r]) != 0)
-            { fprintf(stderr, "Baseline failed on run %d\n", r + 1); return 1; }
+            fprintf(stderr, "Benchmark failed on run %d\n", r + 1);
+            return 1;
         }
     }
+
+    if (mismatch)
+        fprintf(stderr, "ERROR: Session keys don't match in at least one variant!\n");
 
     // Calculate statistics
     double m_bl_init = calc_mean(bl_init, num_runs), s_bl_init = calc_stddev(bl_init, num_runs);
@@ -404,7 +359,7 @@ int main(int argc, char *argv[])
     char results[4096];
     snprintf(results, sizeof(results),
              "Protoss Variant Comparison Benchmark Results\n"
-             "Config: %d iterations x %d runs\n"
+             "Config: %d iterations x %d runs (iteration-level rotation)\n"
              "=============================================\n\n"
              "BASELINE:\n"
              "  Init:     %.4f +/- %.4f ms\n"

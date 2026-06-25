@@ -28,11 +28,11 @@ int orchestrated_Init(unsigned char I_out[PROTOSS_POINT_LEN],
 {
     unsigned char X[PROTOSS_POINT_LEN];
 
-    // choose random x in Z_p
-    crypto_core_ristretto255_scalar_random(state->x);
+    // choose random scalar x in Z_p
+    crypto_core_ristretto255_scalar_random(state->secret_scalar);
 
     // calculate X = g^x
-    if (crypto_scalarmult_ristretto255_base(X, state->x) != 0)
+    if (crypto_scalarmult_ristretto255_base(X, state->secret_scalar) != 0)
         return -1;
 
     // Calculate V = Hash(pwd)
@@ -60,11 +60,11 @@ int orchestrated_RspDer(unsigned char R_out[PROTOSS_POINT_LEN],
     unsigned char X_prime[PROTOSS_POINT_LEN];
     unsigned char Z[PROTOSS_POINT_LEN];
 
-    // Choose random y in Z_p
-    crypto_core_ristretto255_scalar_random(state->x);
+    // Choose random secret scalar y in Z_p
+    crypto_core_ristretto255_scalar_random(state->secret_scalar);
 
     // Calculate Y = g^y
-    if (crypto_scalarmult_ristretto255_base(Y, state->x) != 0)
+    if (crypto_scalarmult_ristretto255_base(Y, state->secret_scalar) != 0)
         return -1;
 
     // Calculate V = Hash(pwd)
@@ -80,7 +80,7 @@ int orchestrated_RspDer(unsigned char R_out[PROTOSS_POINT_LEN],
         return -1;
 
     // Calculates Z = (X')^y ~> y*X' in elliptic curve calculations
-    if (crypto_scalarmult_ristretto255(Z, state->x, X_prime) != 0)
+    if (crypto_scalarmult_ristretto255(Z, state->secret_scalar, X_prime) != 0)
         return -1;
 
     // Calculates K = H'(Z, I, R, P_i, P_j, V)
@@ -90,7 +90,6 @@ int orchestrated_RspDer(unsigned char R_out[PROTOSS_POINT_LEN],
                                    state->V) != 0)
         return -1;
 
-    memcpy(state->I, R, PROTOSS_POINT_LEN);
     memcpy(R_out, R, PROTOSS_POINT_LEN);
 
     return 0;
@@ -108,7 +107,7 @@ int orchestrated_Der(unsigned char K[PROTOSS_SESSION_KEY_LEN],
         return -1;
 
     // Calculates Z = (Y')^x ~> x*Y' in elliptic curve calculations
-    if (crypto_scalarmult_ristretto255(Z, state->x, Y_prime) != 0)
+    if (crypto_scalarmult_ristretto255(Z, state->secret_scalar, Y_prime) != 0)
         return -1;
 
     // Calculates K = H'(Z, I, R, P_i, P_j, V)
