@@ -23,7 +23,7 @@ def main():
 
         print("Step 3: Der phase...")
         logger.log(LoggingKeyword.INFO, "Step Three Execution - Der")
-        session_key_i = Der(password, protoss_state, R)
+        session_key_i = Der(protoss_state, R)
 
         match = (session_key_i == session_key_j)
         status = "match" if match else "do NOT match"

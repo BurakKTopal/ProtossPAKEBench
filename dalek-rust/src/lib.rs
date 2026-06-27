@@ -2,10 +2,13 @@
 
 pub mod ec_operations;
 pub mod protoss_protocol;
+pub mod protoss_validated;
+pub mod protoss_orchestrated;
+pub mod protoss_precomputed;
 pub mod logger;
 
 pub use protoss_protocol::{
     init, rsp_der, der,
     ProtossState, ReturnTypeInit, ReturnTypeRspDer,
     Error, SESSION_ID_BYTES, SESSION_KEY_BYTES,
-}; 
+};

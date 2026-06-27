@@ -63,8 +63,7 @@ ReturnTypeRspDer RspDer(const std::string &password,
                         std::vector<unsigned char> I);
 
 // Key derivation (Step 3)
-std::vector<unsigned char> Der(const std::string &password,
-                               ProtossState protoss_state,
+std::vector<unsigned char> Der(ProtossState protoss_state,
                                std::vector<unsigned char> R);
 
 // Utility to calculate bit length of data

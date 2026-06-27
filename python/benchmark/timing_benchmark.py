@@ -49,7 +49,7 @@ def run_benchmark(iterations: int, run_id: int = 1, is_warmup: bool = False) -> 
 
             # Time Der step
             start = time.perf_counter()
-            session_key_i = Der(password, protoss_state, R)
+            session_key_i = Der(protoss_state, R)
             end = time.perf_counter()
             der_times.append(end - start)
 

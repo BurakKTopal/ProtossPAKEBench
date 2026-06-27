@@ -35,14 +35,14 @@ int validated_Init(ValidatedReturnTypeInit *result,
                    const unsigned char *P_i, size_t P_i_len,
                    const unsigned char *P_j, size_t P_j_len);
 
-// Response and key derivation (Step 2) - validates received point I
+// Response and key derivation (Step 2): validates received point I
 int validated_RspDer(ValidatedReturnTypeRspDer *result,
                      const char *password, size_t password_len,
                      const unsigned char *P_i, size_t P_i_len,
                      const unsigned char *P_j, size_t P_j_len,
                      const unsigned char I[PROTOSS_POINT_LEN]);
 
-// Key derivation (Step 3) - validates received point R
+// Key derivation (Step 3): validates received point R
 int validated_Der(unsigned char K[PROTOSS_SESSION_KEY_LEN],
                   const ProtossValidatedState *state,
                   const unsigned char R[PROTOSS_POINT_LEN]);

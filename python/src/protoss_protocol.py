@@ -101,7 +101,7 @@ def RspDer(password: str, P_i: bytes, P_j: bytes, I: bytes) -> ReturnTypeRspDer:
     return ReturnTypeRspDer(R, K)
 
 
-def Der(password: str, protoss_state: ProtossState, R: bytes) -> bytes:
+def Der(protoss_state: ProtossState, R: bytes) -> bytes:
     """Key derivation (Step 3)"""
     # Gets state vars
     x, I, P_i, P_j, V = protoss_state.x, protoss_state.I, protoss_state.P_i, protoss_state.P_j, protoss_state.V

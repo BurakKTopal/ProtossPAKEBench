@@ -68,6 +68,9 @@ _lib.crypto_core_ristretto255_sub.restype = ctypes.c_int
 _lib.crypto_scalarmult_ristretto255.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
 _lib.crypto_scalarmult_ristretto255.restype = ctypes.c_int
 
+_lib.crypto_core_ristretto255_is_valid_point.argtypes = [ctypes.c_void_p]
+_lib.crypto_core_ristretto255_is_valid_point.restype = ctypes.c_int
+
 # Wrappers for the libsodium functions
 
 def crypto_core_ristretto255_scalar_random():
@@ -142,4 +145,12 @@ def crypto_scalarmult_ristretto255(scalar, point):
     if _lib.crypto_scalarmult_ristretto255(result, scalar_buf, point_buf) != 0:
         raise RuntimeError("crypto_scalarmult_ristretto255 failed")
 
-    return bytes(result) 
+    return bytes(result)
+
+def crypto_core_ristretto255_is_valid_point(point):
+    """Check that a point is a valid Ristretto point in canonical form."""
+    if len(point) != CRYPTO_CORE_RISTRETTO255_BYTES:
+        raise ValueError("Invalid point length")
+
+    point_buf = ctypes.create_string_buffer(point, CRYPTO_CORE_RISTRETTO255_BYTES)
+    return _lib.crypto_core_ristretto255_is_valid_point(point_buf) == 1 

@@ -23,12 +23,12 @@ int protoss_orchestrated_state_create(ProtossOrchestratedState *state,
 // Cleanup: securely wipe sensitive data from state
 void protoss_orchestrated_state_destroy(ProtossOrchestratedState *state);
 
-// Initialize protocol (Step 1) - fills state directly by reference
+// Initialize protocol (Step 1): fills state directly by reference
 int orchestrated_Init(unsigned char I_out[PROTOSS_POINT_LEN],
                       ProtossOrchestratedState *state, // initiator's state
                       const char *password, size_t password_len);
 
-// Response and key derivation (Step 2) - fills state directly by reference
+// Response and key derivation (Step 2): fills state directly by reference
 int orchestrated_RspDer(unsigned char R_out[PROTOSS_POINT_LEN],
                         unsigned char K[PROTOSS_SESSION_KEY_LEN],
                         ProtossOrchestratedState *state, // responder's state

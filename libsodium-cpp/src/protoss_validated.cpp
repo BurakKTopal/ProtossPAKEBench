@@ -1,55 +1,12 @@
+#include "protoss_validated.hpp"
+#include <sodium.h>
+#include <stdexcept>
 
-#include "protoss_protocol.hpp"
-
-// Hash password -> 64-byte hash -> map to Ristretto point
-std::vector<unsigned char> hash_to_point(const std::string &password)
+ReturnTypeRspDer validated_RspDer(const std::string &password, const std::vector<unsigned char> &P_i, std::vector<unsigned char> &P_j, std::vector<unsigned char> I)
 {
-    std::vector<unsigned char> hash(INPUT_LEN_RISTRETTO_HASH_TO_POINT, 0);
-    if (crypto_hash_sha512(hash.data(), (const unsigned char *)password.data(), password.size()) != 0)
-        throw std::runtime_error("crypto_hash_sha512 failed");
-
-    std::vector<unsigned char> point(POINT_LEN, 0);
-    if (crypto_core_ristretto255_from_hash(point.data(), hash.data()) != 0)
-        throw std::runtime_error("crypto_core_ristretto255_from_hash failed");
-
-    return point;
-}
-
-// Concatenate multiple byte vectors
-std::vector<unsigned char> concatenate_vectors(const std::vector<std::vector<unsigned char>> &inputs)
-{
-    std::vector<unsigned char> result;
-    for (const auto &vec : inputs)
-        result.insert(result.end(), vec.begin(), vec.end());
-    return result;
-}
-
-ReturnTypeInit Init(const std::string &password, const std::vector<unsigned char> &P_i, std::vector<unsigned char> &P_j)
-{
-
-    // choose random x in Z_p
-    std::vector<unsigned char> x(SCALAR_LEN);
-    crypto_core_ristretto255_scalar_random(x.data());
-
-    // calculate X = g^x
-    std::vector<unsigned char> X(POINT_LEN);
-    if (crypto_scalarmult_ristretto255_base(X.data(), x.data()) != 0)
-        throw std::runtime_error("crypto_scalarmult_ristretto255_base failed");
-
-    // Calculate V = Hash(pwd)
-    std::vector<unsigned char> V = hash_to_point(password);
-
-    // Calculate I = X*V ~> X + V in elliptic curves
-    std::vector<unsigned char> I(POINT_LEN);
-    if (crypto_core_ristretto255_add(I.data(), X.data(), V.data()) != 0)
-        throw std::runtime_error("crypto_core_ristretto255_add failed");
-
-    ProtossState *state = new ProtossState(x, I, P_i, P_j, V);
-    return ReturnTypeInit(I, *state);
-}
-
-ReturnTypeRspDer RspDer(const std::string &password, const std::vector<unsigned char> &P_i, std::vector<unsigned char> &P_j, std::vector<unsigned char> I)
-{
+    // Validate received point I
+    if (crypto_core_ristretto255_is_valid_point(I.data()) != 1)
+        throw std::runtime_error("invalid Ristretto point I");
 
     // Choose random y in Z_p
     std::vector<unsigned char> y(SCALAR_LEN);
@@ -88,10 +45,12 @@ ReturnTypeRspDer RspDer(const std::string &password, const std::vector<unsigned 
     return ReturnTypeRspDer(R, K);
 }
 
-std::vector<unsigned char> Der(ProtossState protoss_state, std::vector<unsigned char> R)
+std::vector<unsigned char> validated_Der(ProtossState protoss_state, std::vector<unsigned char> R)
 {
+    // Validate received point R
+    if (crypto_core_ristretto255_is_valid_point(R.data()) != 1)
+        throw std::runtime_error("invalid Ristretto point R");
 
-    // Gets state vars
     auto &[x, I, P_i, P_j, V] = protoss_state;
 
     // Calculate Y' = R/V ~> R - V because R and V are elliptic curve points
@@ -99,7 +58,7 @@ std::vector<unsigned char> Der(ProtossState protoss_state, std::vector<unsigned 
     if (crypto_core_ristretto255_sub(Y_prime.data(), R.data(), V.data()) != 0)
         throw std::runtime_error("crypto_core_ristretto255_sub failed");
 
-    // Calculates Z = (Y')^x ~> x*Y' in elliptic curve calcuations
+    // Calculates Z = (Y')^x ~> x*Y' in elliptic curve calculations
     std::vector<unsigned char> Z(POINT_LEN);
     if (crypto_scalarmult_ristretto255(Z.data(), x.data(), Y_prime.data()) != 0)
         throw std::runtime_error("crypto_scalarmult_ristretto255 failed");

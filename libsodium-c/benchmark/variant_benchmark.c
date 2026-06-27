@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
     printf("%-14s | %8.4f               | %8.4f               | %8.4f               | %8.4f\n",
            "Total (ms)", bl_total, vl_total, or_total, pc_proto);
     printf("\n");
-    printf("Precomputed: precompute cost = %.4f +/- %.4f ms, total with precompute = %.4f ms\n",
+    printf("Precomputed: precompute cost = %.4f +/- %.4f ms, total including precompute = %.4f ms\n",
            m_pc_pre, s_pc_pre, pc_total);
 
     // Save results to file
@@ -381,8 +381,8 @@ int main(int argc, char *argv[])
              "  Init:     %.4f +/- %.4f ms\n"
              "  RspDer:   %.4f +/- %.4f ms\n"
              "  Der:      %.4f +/- %.4f ms\n"
-             "  Protocol: %.4f ms (without precompute)\n"
-             "  Total:    %.4f ms (with precompute)\n",
+             "  Protocol: %.4f ms (online cost, precompute done ahead)\n"
+             "  Total:    %.4f ms (precompute time included)\n",
              iterations, num_runs,
              m_bl_init, s_bl_init, m_bl_rsp, s_bl_rsp, m_bl_der, s_bl_der, bl_total,
              m_vl_init, s_vl_init, m_vl_rsp, s_vl_rsp, m_vl_der, s_vl_der, vl_total,

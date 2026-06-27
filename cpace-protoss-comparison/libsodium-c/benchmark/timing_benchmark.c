@@ -6,6 +6,7 @@
 #include <time.h>
 #include <sodium.h>
 #include "protoss_protocol.h"
+#include "protoss_precomputed.h"
 #include "logger.h"
 #include "crypto_cpace.h"
 
@@ -49,7 +50,18 @@ static void init_inputs(void)
     memset(g_P_j, 0x02, sizeof(g_P_j));
 }
 
-static int protoss_once(double *init_t, double *rspder_t, double *der_t, int *mismatch)
+// Per-iteration nanosecond accumulators
+typedef struct
+{
+    double phase1, phase2, phase3;
+} ThreePhase;
+
+typedef struct
+{
+    double precompute, init, rspder, der;
+} FourPhase;
+
+static int protoss_once(ThreePhase *acc, int *mismatch)
 {
     ReturnTypeInit res_init;
     ReturnTypeRspDer res_rspder;
@@ -61,26 +73,70 @@ static int protoss_once(double *init_t, double *rspder_t, double *der_t, int *mi
     if (Init(&res_init, g_password, pw, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j)) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
-    *init_t += timespec_diff_ns(&start, &end);
+    acc->phase1 += timespec_diff_ns(&start, &end);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     if (RspDer(&res_rspder, g_password, pw, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j), res_init.I) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
-    *rspder_t += timespec_diff_ns(&start, &end);
+    acc->phase2 += timespec_diff_ns(&start, &end);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     if (Der(K_der, &res_init.state, res_rspder.R) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
-    *der_t += timespec_diff_ns(&start, &end);
+    acc->phase3 += timespec_diff_ns(&start, &end);
 
     if (memcmp(K_der, res_rspder.K, PROTOSS_SESSION_KEY_LEN) != 0)
         *mismatch = 1;
     return 0;
 }
 
-static int cpace_once(double *step1_t, double *step2_t, double *step3_t, int *mismatch)
+static int precomputed_once(FourPhase *acc, int *mismatch)
+{
+    ProtossPrecomputedState init_state, rsp_state;
+    unsigned char I_out[PROTOSS_POINT_LEN];
+    unsigned char R_out[PROTOSS_POINT_LEN];
+    unsigned char K_init[PROTOSS_SESSION_KEY_LEN];
+    unsigned char K_rsp[PROTOSS_SESSION_KEY_LEN];
+    struct timespec start, end;
+    size_t pw = strlen(g_password);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (protoss_precomputed_state_create(&init_state, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j)) != 0)
+        return -1;
+    if (protoss_precomputed_state_create(&rsp_state, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j)) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    acc->precompute += timespec_diff_ns(&start, &end);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (precomputed_Init(I_out, &init_state, g_password, pw) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    acc->init += timespec_diff_ns(&start, &end);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (precomputed_RspDer(R_out, K_rsp, &rsp_state, g_password, pw, I_out) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    acc->rspder += timespec_diff_ns(&start, &end);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (precomputed_Der(K_init, &init_state, R_out) != 0)
+        return -1;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    acc->der += timespec_diff_ns(&start, &end);
+
+    if (memcmp(K_init, K_rsp, PROTOSS_SESSION_KEY_LEN) != 0)
+        *mismatch = 1;
+
+    protoss_precomputed_state_destroy(&init_state);
+    protoss_precomputed_state_destroy(&rsp_state);
+    return 0;
+}
+
+static int cpace_once(ThreePhase *acc, int *mismatch)
 {
     crypto_cpace_state ctx;
     unsigned char public_data[crypto_cpace_PUBLICDATABYTES];
@@ -95,7 +151,7 @@ static int cpace_once(double *step1_t, double *step2_t, double *step3_t, int *mi
                            NULL, 0) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
-    *step1_t += timespec_diff_ns(&start, &end);
+    acc->phase1 += timespec_diff_ns(&start, &end);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     if (crypto_cpace_step2(response, public_data, &sk_responder, g_password, pw,
@@ -103,13 +159,13 @@ static int cpace_once(double *step1_t, double *step2_t, double *step3_t, int *mi
                            NULL, 0) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
-    *step2_t += timespec_diff_ns(&start, &end);
+    acc->phase2 += timespec_diff_ns(&start, &end);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     if (crypto_cpace_step3(&ctx, &sk_initiator, response) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
-    *step3_t += timespec_diff_ns(&start, &end);
+    acc->phase3 += timespec_diff_ns(&start, &end);
 
     if (memcmp(sk_initiator.client_sk, sk_responder.client_sk, crypto_cpace_SHAREDKEYBYTES) != 0 ||
         memcmp(sk_initiator.server_sk, sk_responder.server_sk, crypto_cpace_SHAREDKEYBYTES) != 0)
@@ -117,28 +173,41 @@ static int cpace_once(double *step1_t, double *step2_t, double *step3_t, int *mi
     return 0;
 }
 
-static int run_rotated(size_t iterations,
-                       double *pr_init, double *pr_rspder, double *pr_der,
-                       double *cp_step1, double *cp_step2, double *cp_step3,
-                       int *mismatch)
+// Per-run averages in microseconds for the three competitors
+typedef struct
 {
-    double pi = 0, pr = 0, pd = 0;
-    double c1 = 0, c2 = 0, c3 = 0;
+    double pr[3];
+    double pc[4];
+    double cp[3];
+} RunResult;
+
+static int run_rotated(size_t iterations, RunResult *out, int *mismatch)
+{
+    ThreePhase pr = {0};
+    FourPhase pc = {0};
+    ThreePhase cp = {0};
 
     for (size_t i = 0; i < iterations; i++)
     {
-        if (protoss_once(&pi, &pr, &pd, mismatch) != 0)
+        if (protoss_once(&pr, mismatch) != 0)
             return -1;
-        if (cpace_once(&c1, &c2, &c3, mismatch) != 0)
+        if (precomputed_once(&pc, mismatch) != 0)
+            return -1;
+        if (cpace_once(&cp, mismatch) != 0)
             return -1;
     }
 
-    *pr_init = (pi / iterations) / 1000.0;
-    *pr_rspder = (pr / iterations) / 1000.0;
-    *pr_der = (pd / iterations) / 1000.0;
-    *cp_step1 = (c1 / iterations) / 1000.0;
-    *cp_step2 = (c2 / iterations) / 1000.0;
-    *cp_step3 = (c3 / iterations) / 1000.0;
+    double n = (double)iterations;
+    out->pr[0] = pr.phase1 / n / 1000.0;
+    out->pr[1] = pr.phase2 / n / 1000.0;
+    out->pr[2] = pr.phase3 / n / 1000.0;
+    out->pc[0] = pc.precompute / n / 1000.0;
+    out->pc[1] = pc.init / n / 1000.0;
+    out->pc[2] = pc.rspder / n / 1000.0;
+    out->pc[3] = pc.der / n / 1000.0;
+    out->cp[0] = cp.phase1 / n / 1000.0;
+    out->cp[1] = cp.phase2 / n / 1000.0;
+    out->cp[2] = cp.phase3 / n / 1000.0;
     return 0;
 }
 
@@ -171,103 +240,90 @@ int main(int argc, char *argv[])
 
     printf("Performing warm-up runs (%zu iterations)...\n", warmup_iterations);
     {
-        double d[6];
-        run_rotated(warmup_iterations, &d[0], &d[1], &d[2], &d[3], &d[4], &d[5], &mismatch);
+        RunResult warm;
+        run_rotated(warmup_iterations, &warm, &mismatch);
     }
 
     printf("\nStarting main benchmark runs (%zu runs x %zu iterations)...\n", num_runs, benchmark_iterations);
 
-    double *protoss_init_runs = (double *)malloc(num_runs * sizeof(double));
-    double *protoss_rspder_runs = (double *)malloc(num_runs * sizeof(double));
-    double *protoss_der_runs = (double *)malloc(num_runs * sizeof(double));
-    double *protoss_total_runs = (double *)malloc(num_runs * sizeof(double));
-
-    double *cpace_step1_runs = (double *)malloc(num_runs * sizeof(double));
-    double *cpace_step2_runs = (double *)malloc(num_runs * sizeof(double));
-    double *cpace_step3_runs = (double *)malloc(num_runs * sizeof(double));
-    double *cpace_total_runs = (double *)malloc(num_runs * sizeof(double));
+    RunResult *runs = (RunResult *)malloc(num_runs * sizeof(RunResult));
 
     for (size_t r = 0; r < num_runs; r++)
     {
         printf("\n--- Run %zu of %zu ---\n", r + 1, num_runs);
-
-        double pr_init, pr_rspder, pr_der;
-        double cp_step1, cp_step2, cp_step3;
-
-        if (run_rotated(benchmark_iterations,
-                        &pr_init, &pr_rspder, &pr_der,
-                        &cp_step1, &cp_step2, &cp_step3, &mismatch) != 0)
+        if (run_rotated(benchmark_iterations, &runs[r], &mismatch) != 0)
         {
             fprintf(stderr, "Benchmark failed on run %zu\n", r + 1);
+            free(runs);
             return 1;
         }
-
-        protoss_init_runs[r] = pr_init;
-        protoss_rspder_runs[r] = pr_rspder;
-        protoss_der_runs[r] = pr_der;
-        protoss_total_runs[r] = pr_init + pr_rspder + pr_der;
-
-        cpace_step1_runs[r] = cp_step1;
-        cpace_step2_runs[r] = cp_step2;
-        cpace_step3_runs[r] = cp_step3;
-        cpace_total_runs[r] = cp_step1 + cp_step2 + cp_step3;
     }
 
     if (mismatch)
         fprintf(stderr, "ERROR: shared keys do not match in at least one protocol!\n");
 
-    double mean_protoss_init = calc_mean(protoss_init_runs, num_runs);
-    double mean_protoss_rspder = calc_mean(protoss_rspder_runs, num_runs);
-    double mean_protoss_der = calc_mean(protoss_der_runs, num_runs);
-    double mean_protoss_total = calc_mean(protoss_total_runs, num_runs);
+    // Collect each measured quantity across runs to compute mean and stddev
+    double *col = (double *)malloc(num_runs * sizeof(double));
 
-    double std_protoss_init = calc_stddev(protoss_init_runs, num_runs);
-    double std_protoss_rspder = calc_stddev(protoss_rspder_runs, num_runs);
-    double std_protoss_der = calc_stddev(protoss_der_runs, num_runs);
-    double std_protoss_total = calc_stddev(protoss_total_runs, num_runs);
+    double m_pr[3], s_pr[3], m_pc[4], s_pc[4], m_cp[3], s_cp[3];
+    for (int j = 0; j < 3; j++)
+    {
+        for (size_t r = 0; r < num_runs; r++) col[r] = runs[r].pr[j];
+        m_pr[j] = calc_mean(col, num_runs);
+        s_pr[j] = calc_stddev(col, num_runs);
+    }
+    for (int j = 0; j < 4; j++)
+    {
+        for (size_t r = 0; r < num_runs; r++) col[r] = runs[r].pc[j];
+        m_pc[j] = calc_mean(col, num_runs);
+        s_pc[j] = calc_stddev(col, num_runs);
+    }
+    for (int j = 0; j < 3; j++)
+    {
+        for (size_t r = 0; r < num_runs; r++) col[r] = runs[r].cp[j];
+        m_cp[j] = calc_mean(col, num_runs);
+        s_cp[j] = calc_stddev(col, num_runs);
+    }
 
-    double mean_cpace_step1 = calc_mean(cpace_step1_runs, num_runs);
-    double mean_cpace_step2 = calc_mean(cpace_step2_runs, num_runs);
-    double mean_cpace_step3 = calc_mean(cpace_step3_runs, num_runs);
-    double mean_cpace_total = calc_mean(cpace_total_runs, num_runs);
+    free(col);
+    free(runs);
 
-    double std_cpace_step1 = calc_stddev(cpace_step1_runs, num_runs);
-    double std_cpace_step2 = calc_stddev(cpace_step2_runs, num_runs);
-    double std_cpace_step3 = calc_stddev(cpace_step3_runs, num_runs);
-    double std_cpace_total = calc_stddev(cpace_total_runs, num_runs);
+    double pr_total = m_pr[0] + m_pr[1] + m_pr[2];
+    double pc_proto = m_pc[1] + m_pc[2] + m_pc[3];
+    double pc_total = m_pc[0] + pc_proto;
+    double cp_total = m_cp[0] + m_cp[1] + m_cp[2];
 
-    free(protoss_init_runs); free(protoss_rspder_runs); free(protoss_der_runs); free(protoss_total_runs);
-    free(cpace_step1_runs); free(cpace_step2_runs); free(cpace_step3_runs); free(cpace_total_runs);
+    char results[4096];
+    snprintf(results, sizeof(results),
+             "PAKE Protocol Comparison Benchmark Results\n"
+             "=========================================\n"
+             "Warm-up iterations: %zu\n"
+             "Benchmark iterations: %zu\n"
+             "Number of runs: %zu\n\n"
+             "PROTOSS (baseline):\n"
+             "  Init:     %.3f +/- %.3f us\n"
+             "  RspDer:   %.3f +/- %.3f us\n"
+             "  Der:      %.3f +/- %.3f us\n"
+             "  Total:    %.3f us\n\n"
+             "PROTOSS (precomputed):\n"
+             "  Precomp:  %.3f +/- %.3f us\n"
+             "  Init:     %.3f +/- %.3f us\n"
+             "  RspDer:   %.3f +/- %.3f us\n"
+             "  Der:      %.3f +/- %.3f us\n"
+             "  Protocol: %.3f us (online cost, precompute done ahead)\n"
+             "  Total:    %.3f us (precompute time included)\n\n"
+             "CPACE:\n"
+             "  Step 1:   %.3f +/- %.3f us\n"
+             "  Step 2:   %.3f +/- %.3f us\n"
+             "  Step 3:   %.3f +/- %.3f us\n"
+             "  Total:    %.3f us\n",
+             warmup_iterations, benchmark_iterations, num_runs,
+             m_pr[0], s_pr[0], m_pr[1], s_pr[1], m_pr[2], s_pr[2], pr_total,
+             m_pc[0], s_pc[0], m_pc[1], s_pc[1], m_pc[2], s_pc[2], m_pc[3], s_pc[3], pc_proto, pc_total,
+             m_cp[0], s_cp[0], m_cp[1], s_cp[1], m_cp[2], s_cp[2], cp_total);
 
-    char protoss_results[1024];
-    snprintf(protoss_results, sizeof(protoss_results),
-             "Protoss PAKE Benchmark Results (%zu iterations x %zu runs):\n"
-             "Average Init time: %.3f +/- %.3f us\n"
-             "Average RspDer time: %.3f +/- %.3f us\n"
-             "Average Der time: %.3f +/- %.3f us\n"
-             "Total average time per protocol run: %.3f +/- %.3f us",
-             benchmark_iterations, num_runs,
-             mean_protoss_init, std_protoss_init,
-             mean_protoss_rspder, std_protoss_rspder,
-             mean_protoss_der, std_protoss_der,
-             mean_protoss_total, std_protoss_total);
-
-    logger_log(LOG_BENCHMARK, protoss_results);
-
-    char cpace_results[1024];
-    snprintf(cpace_results, sizeof(cpace_results),
-             "CPACE Benchmark Results (%zu iterations x %zu runs):\n"
-             "Average Step 1 time: %.3f +/- %.3f us\n"
-             "Average Step 2 time: %.3f +/- %.3f us\n"
-             "Average Step 3 time: %.3f +/- %.3f us\n"
-             "Total average time per protocol run: %.3f +/- %.3f us",
-             benchmark_iterations, num_runs,
-             mean_cpace_step1, std_cpace_step1,
-             mean_cpace_step2, std_cpace_step2,
-             mean_cpace_step3, std_cpace_step3,
-             mean_cpace_total, std_cpace_total);
-
-    logger_log(LOG_BENCHMARK, cpace_results);
+    printf("\n%s", results);
+    logger_log(LOG_BENCHMARK, results);
 
     char filename[256];
     time_t now = time(NULL);
@@ -277,19 +333,7 @@ int main(int argc, char *argv[])
     snprintf(filename, sizeof(filename),
              "benchmark_results_it%zu_%s.txt", benchmark_iterations, ts);
 
-    char final_results[4096];
-    snprintf(final_results, sizeof(final_results),
-             "PAKE Protocol Comparison Benchmark Results\n"
-             "=========================================\n"
-             "Warm-up iterations: %zu\n"
-             "Benchmark iterations: %zu\n"
-             "Number of runs: %zu\n\n"
-             "%s\n\n"
-             "%s\n",
-             warmup_iterations, benchmark_iterations, num_runs,
-             protoss_results, cpace_results);
-
-    logger_log_to_file(filename, final_results);
+    logger_log_to_file(filename, results);
     logger_log(LOG_BENCHMARK, "PAKE Protocol Comparison Benchmark completed");
 
     printf("\nBenchmark results saved to benchmark_results/sodium/%s\n", filename);

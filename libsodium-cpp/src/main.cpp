@@ -27,7 +27,7 @@ int main()
         std::vector<unsigned char> session_key_j = res_rspDer.getSessionKey();
 
         logger.log(LoggingKeyword::INFO, "Step Three Execution - Der");
-        std::vector<unsigned char> session_key_i = Der(password, protoss_state, R);
+        std::vector<unsigned char> session_key_i = Der(protoss_state, R);
 
         bool match = (session_key_i == session_key_j);
         logger.log(LoggingKeyword::INFO, "Session keys " + std::string(match ? "match." : "do NOT match."));

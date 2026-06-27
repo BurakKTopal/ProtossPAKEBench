@@ -78,7 +78,7 @@ bool run_benchmark(int iterations, int run_id, bool is_warmup,
 
             // Time Der step
             start = std::chrono::high_resolution_clock::now();
-            std::vector<unsigned char> session_key_i = Der(password, protoss_state, R);
+            std::vector<unsigned char> session_key_i = Der(protoss_state, R);
             end = std::chrono::high_resolution_clock::now();
             der_time += end - start;
 

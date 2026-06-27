@@ -2,6 +2,7 @@
 
 pub mod ec_operations;
 pub mod protoss_protocol;
+pub mod protoss_precomputed;
 pub mod logger;
 
 pub use protoss_protocol::{

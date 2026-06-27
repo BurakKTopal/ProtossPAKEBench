@@ -88,7 +88,7 @@ ReturnTypeRspDer RspDer(const std::string &password, const std::vector<unsigned 
     return ReturnTypeRspDer(R, K);
 }
 
-std::vector<unsigned char> Der(const std::string &password, ProtossState protoss_state, std::vector<unsigned char> R)
+std::vector<unsigned char> Der(ProtossState protoss_state, std::vector<unsigned char> R)
 {
 
     // Gets state vars

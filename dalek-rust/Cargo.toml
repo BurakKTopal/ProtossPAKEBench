@@ -19,4 +19,8 @@ path = "src/main.rs"
 
 [[bin]]
 name = "benchmark"
-path = "src/bin/benchmark.rs"
+path = "benchmark/benchmark.rs"
+
+[[bin]]
+name = "variant_benchmark"
+path = "benchmark/variant_benchmark.rs"
