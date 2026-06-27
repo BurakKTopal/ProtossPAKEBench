@@ -1,8 +1,10 @@
 **/target/
 **/Cargo.lock
-**/build/ 
+**/build/
 .vscode
 **/__pycache__/
 **/logs/
 **/benchmark_results/
 .venv
+out/
+benchmark_data/
