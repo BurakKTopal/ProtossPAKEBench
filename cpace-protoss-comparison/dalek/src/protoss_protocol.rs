@@ -141,7 +141,6 @@ pub fn rsp_der(
 
 // Derivation
 pub fn der(
-    _password: &str, 
     protoss_state: ProtossState,
     r: RistrettoPoint,
 ) -> Result<[u8; SESSION_KEY_BYTES], Error> {
@@ -193,7 +192,7 @@ mod tests {
         let k1 = rsp_der_result.k;
 
         // Step 3: Derivation
-        let k2 = der(password, init_result.state, r).unwrap();
+        let k2 = der(init_result.state, r).unwrap();
 
         // Verify keys match
         assert_eq!(k1, k2, "Session keys do not match");

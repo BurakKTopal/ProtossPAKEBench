@@ -5,14 +5,13 @@
 #include <cstring>
 #include <cmath>
 #include <cstdlib>
-#include <random>
 #include <iomanip>
 #include <sstream>
 #include "protoss_protocol.hpp"
 #include "logger.hpp"
 extern "C"
 {
-#include "crypto_cpace.h "
+#include "crypto_cpace.h"
 }
 
 static double calc_mean(const std::vector<double> &values)
@@ -37,173 +36,87 @@ static double calc_stddev(const std::vector<double> &values)
     return std::sqrt(sum_sq / (values.size() - 1));
 }
 
-// Helper function to generate random password
-std::string generate_random_password(size_t length)
-{
-    static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    static std::uniform_int_distribution<> dis(0, sizeof(charset) - 2);
+static const char *g_password = "SharedPassword";
+static const char *g_id_a = "client_identif00";
+static const char *g_id_b = "server_identif00";
 
-    std::string password;
-    password.reserve(length);
-    for (size_t i = 0; i < length; ++i)
-    {
-        password += charset[dis(gen)];
-    }
-    return password;
+static bool protoss_once(double &init_t, double &rspder_t, double &der_t)
+{
+    const std::string password = g_password;
+    const std::vector<unsigned char> P_i(16, 0x01);
+    std::vector<unsigned char> P_j(16, 0x02);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    auto [I, state] = Init(password, P_i, P_j);
+    auto end = std::chrono::high_resolution_clock::now();
+    init_t += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    start = std::chrono::high_resolution_clock::now();
+    auto rspder_result = RspDer(password, P_i, P_j, I);
+    end = std::chrono::high_resolution_clock::now();
+    rspder_t += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    start = std::chrono::high_resolution_clock::now();
+    auto K_der = Der(g_password, state, rspder_result.R);
+    end = std::chrono::high_resolution_clock::now();
+    der_t += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    return K_der == rspder_result.getSessionKey();
 }
 
-// Helper function to generate random bytes
-std::vector<unsigned char> generate_random_bytes(size_t length)
+static bool cpace_once(double &step1_t, double &step2_t, double &step3_t)
 {
-    std::vector<unsigned char> bytes(length);
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, 255);
+    crypto_cpace_state ctx;
+    unsigned char public_data[crypto_cpace_PUBLICDATABYTES];
+    unsigned char response[crypto_cpace_RESPONSEBYTES];
+    crypto_cpace_shared_keys sk_initiator, sk_responder;
+    size_t pw = std::strlen(g_password);
+    size_t la = std::strlen(g_id_a);
+    size_t lb = std::strlen(g_id_b);
 
-    for (size_t i = 0; i < length; ++i)
-    {
-        bytes[i] = static_cast<unsigned char>(dis(gen));
-    }
-    return bytes;
+    auto start = std::chrono::high_resolution_clock::now();
+    crypto_cpace_step1(&ctx, public_data, g_password, pw,
+                       g_id_a, la, g_id_b, lb, nullptr, 0);
+    auto end = std::chrono::high_resolution_clock::now();
+    step1_t += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    start = std::chrono::high_resolution_clock::now();
+    crypto_cpace_step2(response, public_data, &sk_responder, g_password, pw,
+                       g_id_a, la, g_id_b, lb, nullptr, 0);
+    end = std::chrono::high_resolution_clock::now();
+    step2_t += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    start = std::chrono::high_resolution_clock::now();
+    crypto_cpace_step3(&ctx, &sk_initiator, response);
+    end = std::chrono::high_resolution_clock::now();
+    step3_t += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    return std::memcmp(sk_initiator.client_sk, sk_responder.client_sk, crypto_cpace_SHAREDKEYBYTES) == 0 &&
+           std::memcmp(sk_initiator.server_sk, sk_responder.server_sk, crypto_cpace_SHAREDKEYBYTES) == 0;
 }
 
-void warmup_protoss(size_t warmup_iterations)
+static void run_rotated(size_t iterations,
+                        double &pr_init, double &pr_rspder, double &pr_der,
+                        double &cp_step1, double &cp_step2, double &cp_step3,
+                        bool &mismatch)
 {
-    Logger &logger = Logger::get_instance();
-    logger.log(LoggingKeyword::BENCHMARK, "Warming up Protoss PAKE with " + std::to_string(warmup_iterations) + " iterations");
-
-    for (size_t i = 0; i < warmup_iterations; ++i)
-    {
-        std::string password = generate_random_password(16);
-        auto P_i = generate_random_bytes(32);
-        auto P_j = generate_random_bytes(32);
-
-        auto [I, state] = Init(password, P_i, P_j);
-        auto rspder_result = RspDer(password, P_i, P_j, I);
-        auto K_der = Der(password, state, rspder_result.R);
-    }
-}
-
-void warmup_cpace(size_t warmup_iterations)
-{
-    Logger &logger = Logger::get_instance();
-    logger.log(LoggingKeyword::BENCHMARK, "Warming up CPACE with " + std::to_string(warmup_iterations) + " iterations");
-
-    for (size_t i = 0; i < warmup_iterations; ++i)
-    {
-        std::string password = generate_random_password(16);
-        std::string id_a = "client";
-        std::string id_b = "server";
-
-        crypto_cpace_state ctx;
-        unsigned char public_data[crypto_cpace_PUBLICDATABYTES];
-        unsigned char response[crypto_cpace_RESPONSEBYTES];
-        crypto_cpace_shared_keys shared_keys;
-
-        crypto_cpace_step1(&ctx, public_data, password.c_str(), password.length(),
-                           id_a.c_str(), id_a.length(), id_b.c_str(), id_b.length(),
-                           nullptr, 0);
-        crypto_cpace_step2(response, public_data, &shared_keys, password.c_str(),
-                           password.length(), id_a.c_str(), id_a.length(),
-                           id_b.c_str(), id_b.length(), nullptr, 0);
-        crypto_cpace_step3(&ctx, &shared_keys, response);
-    }
-}
-
-// Returns per-run averages in microseconds via out parameters
-void benchmark_protoss(size_t iterations, size_t run_id,
-                       double &out_init, double &out_rspder, double &out_der)
-{
-    Logger &logger = Logger::get_instance();
-    logger.log(LoggingKeyword::BENCHMARK, "Run " + std::to_string(run_id) + ": Starting Protoss PAKE benchmark with " + std::to_string(iterations) + " iterations");
-
-    auto total_init_time = std::chrono::nanoseconds(0);
-    auto total_rspder_time = std::chrono::nanoseconds(0);
-    auto total_der_time = std::chrono::nanoseconds(0);
+    double pi = 0, pr = 0, pd = 0;
+    double c1 = 0, c2 = 0, c3 = 0;
 
     for (size_t i = 0; i < iterations; ++i)
     {
-        std::string password = generate_random_password(16);
-        auto P_i = generate_random_bytes(32);
-        auto P_j = generate_random_bytes(32);
-
-        // Measure Init
-        auto start = std::chrono::high_resolution_clock::now();
-        auto [I, state] = Init(password, P_i, P_j);
-        auto end = std::chrono::high_resolution_clock::now();
-        total_init_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-
-        // Measure RspDer
-        start = std::chrono::high_resolution_clock::now();
-        auto rspder_result = RspDer(password, P_i, P_j, I);
-        auto K_rspder = rspder_result.getSessionKey();
-        end = std::chrono::high_resolution_clock::now();
-        total_rspder_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-
-        // Measure Der
-        start = std::chrono::high_resolution_clock::now();
-        auto K_der = Der(password, state, rspder_result.R);
-        end = std::chrono::high_resolution_clock::now();
-        total_der_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        if (!protoss_once(pi, pr, pd))
+            mismatch = true;
+        if (!cpace_once(c1, c2, c3))
+            mismatch = true;
     }
 
-    // Calculate averages in microseconds
-    out_init = (total_init_time.count() / iterations) / 1000.0;
-    out_rspder = (total_rspder_time.count() / iterations) / 1000.0;
-    out_der = (total_der_time.count() / iterations) / 1000.0;
-}
-
-// Returns per-run averages in microseconds via out parameters
-void benchmark_cpace(size_t iterations, size_t run_id,
-                     double &out_step1, double &out_step2, double &out_step3)
-{
-    Logger &logger = Logger::get_instance();
-    logger.log(LoggingKeyword::BENCHMARK, "Run " + std::to_string(run_id) + ": Starting CPACE benchmark with " + std::to_string(iterations) + " iterations");
-
-    auto total_step1_time = std::chrono::nanoseconds(0);
-    auto total_step2_time = std::chrono::nanoseconds(0);
-    auto total_step3_time = std::chrono::nanoseconds(0);
-
-    for (size_t i = 0; i < iterations; ++i)
-    {
-        std::string password = generate_random_password(16);
-        std::string id_a = "client";
-        std::string id_b = "server";
-
-        crypto_cpace_state ctx;
-        unsigned char public_data[crypto_cpace_PUBLICDATABYTES];
-        unsigned char response[crypto_cpace_RESPONSEBYTES];
-        crypto_cpace_shared_keys shared_keys;
-
-        // Measure Step 1
-        auto start = std::chrono::high_resolution_clock::now();
-        crypto_cpace_step1(&ctx, public_data, password.c_str(), password.length(),
-                           id_a.c_str(), id_a.length(), id_b.c_str(), id_b.length(),
-                           nullptr, 0);
-        auto end = std::chrono::high_resolution_clock::now();
-        total_step1_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-
-        // Measure Step 2
-        start = std::chrono::high_resolution_clock::now();
-        crypto_cpace_step2(response, public_data, &shared_keys, password.c_str(),
-                           password.length(), id_a.c_str(), id_a.length(),
-                           id_b.c_str(), id_b.length(), nullptr, 0);
-        end = std::chrono::high_resolution_clock::now();
-        total_step2_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-
-        // Measure Step 3
-        start = std::chrono::high_resolution_clock::now();
-        crypto_cpace_step3(&ctx, &shared_keys, response);
-        end = std::chrono::high_resolution_clock::now();
-        total_step3_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    }
-
-    // Calculate averages in microseconds
-    out_step1 = (total_step1_time.count() / iterations) / 1000.0;
-    out_step2 = (total_step2_time.count() / iterations) / 1000.0;
-    out_step3 = (total_step3_time.count() / iterations) / 1000.0;
+    pr_init = (pi / iterations) / 1000.0;
+    pr_rspder = (pr / iterations) / 1000.0;
+    pr_der = (pd / iterations) / 1000.0;
+    cp_step1 = (c1 / iterations) / 1000.0;
+    cp_step2 = (c2 / iterations) / 1000.0;
+    cp_step3 = (c3 / iterations) / 1000.0;
 }
 
 int main(int argc, char *argv[])
@@ -213,7 +126,6 @@ int main(int argc, char *argv[])
     size_t num_runs = 10;
     Logger &logger = Logger::get_instance();
 
-    // Parse optional CLI arguments: [iterations] [num_runs] [warmup_iterations]
     if (argc >= 2)
         benchmark_iterations = std::atoi(argv[1]);
     if (argc >= 3)
@@ -221,16 +133,24 @@ int main(int argc, char *argv[])
     if (argc >= 4)
         warmup_iterations = std::atoi(argv[3]);
 
+    if (sodium_init() < 0)
+    {
+        std::cerr << "Failed to initialize libsodium\n";
+        return 1;
+    }
+
     logger.log(LoggingKeyword::BENCHMARK, "Starting PAKE Protocol Comparison Benchmark");
     std::cout << "Starting PAKE Protocol Benchmarking\n";
     std::cout << "==================================\n";
 
-    // Warm-up runs
-    std::cout << "Performing warm-up runs (" << warmup_iterations << " iterations)...\n";
-    warmup_protoss(warmup_iterations);
-    warmup_cpace(warmup_iterations);
+    bool mismatch = false;
 
-    // Run the benchmark multiple times to average out external variability
+    std::cout << "Performing warm-up runs (" << warmup_iterations << " iterations)...\n";
+    {
+        double d[6];
+        run_rotated(warmup_iterations, d[0], d[1], d[2], d[3], d[4], d[5], mismatch);
+    }
+
     std::cout << "\nStarting main benchmark runs (" << num_runs << " runs x " << benchmark_iterations << " iterations)...\n";
 
     std::vector<double> protoss_init_runs, protoss_rspder_runs, protoss_der_runs, protoss_total_runs;
@@ -240,33 +160,27 @@ int main(int argc, char *argv[])
     {
         std::cout << "\n--- Run " << r << " of " << num_runs << " ---\n";
 
-        double avg_init, avg_rspder, avg_der;
-        double avg_step1, avg_step2, avg_step3;
+        double pr_init, pr_rspder, pr_der;
+        double cp_step1, cp_step2, cp_step3;
 
-        // Alternate order to avoid ordering bias
-        if (r % 2 == 1)
-        {
-            benchmark_protoss(benchmark_iterations, r, avg_init, avg_rspder, avg_der);
-            benchmark_cpace(benchmark_iterations, r, avg_step1, avg_step2, avg_step3);
-        }
-        else
-        {
-            benchmark_cpace(benchmark_iterations, r, avg_step1, avg_step2, avg_step3);
-            benchmark_protoss(benchmark_iterations, r, avg_init, avg_rspder, avg_der);
-        }
+        run_rotated(benchmark_iterations,
+                    pr_init, pr_rspder, pr_der,
+                    cp_step1, cp_step2, cp_step3, mismatch);
 
-        protoss_init_runs.push_back(avg_init);
-        protoss_rspder_runs.push_back(avg_rspder);
-        protoss_der_runs.push_back(avg_der);
-        protoss_total_runs.push_back(avg_init + avg_rspder + avg_der);
+        protoss_init_runs.push_back(pr_init);
+        protoss_rspder_runs.push_back(pr_rspder);
+        protoss_der_runs.push_back(pr_der);
+        protoss_total_runs.push_back(pr_init + pr_rspder + pr_der);
 
-        cpace_step1_runs.push_back(avg_step1);
-        cpace_step2_runs.push_back(avg_step2);
-        cpace_step3_runs.push_back(avg_step3);
-        cpace_total_runs.push_back(avg_step1 + avg_step2 + avg_step3);
+        cpace_step1_runs.push_back(cp_step1);
+        cpace_step2_runs.push_back(cp_step2);
+        cpace_step3_runs.push_back(cp_step3);
+        cpace_total_runs.push_back(cp_step1 + cp_step2 + cp_step3);
     }
 
-    // Calculate mean and standard deviation across runs for Protoss
+    if (mismatch)
+        std::cerr << "ERROR: shared keys do not match in at least one protocol!\n";
+
     double mean_protoss_init = calc_mean(protoss_init_runs);
     double mean_protoss_rspder = calc_mean(protoss_rspder_runs);
     double mean_protoss_der = calc_mean(protoss_der_runs);
@@ -277,7 +191,6 @@ int main(int argc, char *argv[])
     double std_protoss_der = calc_stddev(protoss_der_runs);
     double std_protoss_total = calc_stddev(protoss_total_runs);
 
-    // Calculate mean and standard deviation across runs for CPace
     double mean_cpace_step1 = calc_mean(cpace_step1_runs);
     double mean_cpace_step2 = calc_mean(cpace_step2_runs);
     double mean_cpace_step3 = calc_mean(cpace_step3_runs);
@@ -288,7 +201,6 @@ int main(int argc, char *argv[])
     double std_cpace_step3 = calc_stddev(cpace_step3_runs);
     double std_cpace_total = calc_stddev(cpace_total_runs);
 
-    // Format and log Protoss results
     std::stringstream protoss_ss;
     protoss_ss << std::fixed << std::setprecision(3);
     protoss_ss << "Protoss PAKE Benchmark Results (" << benchmark_iterations << " iterations x " << num_runs << " runs):\n";
@@ -299,7 +211,6 @@ int main(int argc, char *argv[])
 
     logger.log(LoggingKeyword::BENCHMARK, protoss_ss.str());
 
-    // Format and log CPace results
     std::stringstream cpace_ss;
     cpace_ss << std::fixed << std::setprecision(3);
     cpace_ss << "CPACE Benchmark Results (" << benchmark_iterations << " iterations x " << num_runs << " runs):\n";
@@ -310,7 +221,6 @@ int main(int argc, char *argv[])
 
     logger.log(LoggingKeyword::BENCHMARK, cpace_ss.str());
 
-    // Save final results to file
     auto now = std::time(nullptr);
     std::stringstream filename;
     filename << "benchmark_results_it" << benchmark_iterations << "_" << std::put_time(std::localtime(&now), "%Y-%m-%d_%H-%M-%S") << ".txt";

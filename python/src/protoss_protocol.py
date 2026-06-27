@@ -96,8 +96,8 @@ def RspDer(password: str, P_i: bytes, P_j: bytes, I: bytes) -> ReturnTypeRspDer:
     
     # Calculates K = H'(Z, I, R, P_i, P_j, V)
     concat = concatenate_bytes([Z, I, R, P_i, P_j, V])
-    K = sodium.crypto_generichash(concat, digest_size=SESSION_KEY_LEN)
-    
+    K = hashlib.sha512(concat).digest()[:SESSION_KEY_LEN]
+
     return ReturnTypeRspDer(R, K)
 
 
@@ -114,7 +114,7 @@ def Der(password: str, protoss_state: ProtossState, R: bytes) -> bytes:
     
     # Calculates K = H'(Z, I, R, P_i, P_j, V)
     concat = concatenate_bytes([Z, I, R, P_i, P_j, V])
-    K = sodium.crypto_generichash(concat, digest_size=SESSION_KEY_LEN)
-    
+    K = hashlib.sha512(concat).digest()[:SESSION_KEY_LEN]
+
     return K
 

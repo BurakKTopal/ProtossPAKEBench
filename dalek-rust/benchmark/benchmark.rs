@@ -60,7 +60,7 @@ fn run_benchmark(iterations: usize, run_id: usize, is_warmup: bool) -> Option<(f
 
         // Time Der step
         let start = Instant::now();
-        let session_key_i = der(password, protoss_state, r_point).unwrap();
+        let session_key_i = der(protoss_state, r_point).unwrap();
         let end = Instant::now();
         der_time += end.duration_since(start);
 

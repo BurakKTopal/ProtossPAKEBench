@@ -46,7 +46,7 @@ fn main() {
     }
 
     // Step 3: Derivation
-    let k2 = der(password, init_result.state, r).unwrap();
+    let k2 = der(init_result.state, r).unwrap();
     println!("Der phase completed");
     if let Ok(logger) = Logger::get_instance().lock() {
         logger.log(LoggingKeyword::INFO, "Der phase completed");

@@ -43,8 +43,6 @@ _lib = _load_libsodium()
 # Define constants
 CRYPTO_CORE_RISTRETTO255_BYTES = 32
 CRYPTO_CORE_RISTRETTO255_SCALARBYTES = 32
-CRYPTO_GENERICHASH_BLAKE2B_BYTES = 32
-CRYPTO_GENERICHASH_BLAKE2B_BYTES_MAX = 64
 
 # Initialize libsodium
 def sodium_init():
@@ -69,13 +67,6 @@ _lib.crypto_core_ristretto255_sub.restype = ctypes.c_int
 
 _lib.crypto_scalarmult_ristretto255.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
 _lib.crypto_scalarmult_ristretto255.restype = ctypes.c_int
-
-_lib.crypto_generichash.argtypes = [
-    ctypes.c_void_p, ctypes.c_size_t,
-    ctypes.c_void_p, ctypes.c_uint64,
-    ctypes.c_void_p, ctypes.c_size_t
-]
-_lib.crypto_generichash.restype = ctypes.c_int
 
 # Wrappers for the libsodium functions
 
@@ -150,25 +141,5 @@ def crypto_scalarmult_ristretto255(scalar, point):
     
     if _lib.crypto_scalarmult_ristretto255(result, scalar_buf, point_buf) != 0:
         raise RuntimeError("crypto_scalarmult_ristretto255 failed")
-    
-    return bytes(result)
 
-def crypto_generichash(message, key=None, digest_size=CRYPTO_GENERICHASH_BLAKE2B_BYTES):
-    """Compute a BLAKE2b hash."""
-    if digest_size > CRYPTO_GENERICHASH_BLAKE2B_BYTES_MAX:
-        raise ValueError("Invalid digest size")
-    
-    buf = ctypes.create_string_buffer(digest_size)
-    msg_len = len(message)
-    msg_buf = ctypes.create_string_buffer(message, msg_len)
-    
-    key_buf = None
-    key_len = 0
-    if key is not None:
-        key_len = len(key)
-        key_buf = ctypes.create_string_buffer(key, key_len)
-    
-    if _lib.crypto_generichash(buf, digest_size, msg_buf, msg_len, key_buf, key_len) != 0:
-        raise RuntimeError("crypto_generichash failed")
-    
-    return bytes(buf) 
+    return bytes(result) 
