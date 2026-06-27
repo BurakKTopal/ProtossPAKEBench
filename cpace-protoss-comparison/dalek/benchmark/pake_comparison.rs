@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 
 use std::time::{Duration, Instant};
-use std::io;
 use std::env;
 use chrono::Local;
 use pake_cpace::CPace;
@@ -208,8 +207,8 @@ fn main() {
     out.push_str(&format!("  Init:     {:.3} +/- {:.3} us\n", m_pc[1], s_pc[1]));
     out.push_str(&format!("  RspDer:   {:.3} +/- {:.3} us\n", m_pc[2], s_pc[2]));
     out.push_str(&format!("  Der:      {:.3} +/- {:.3} us\n", m_pc[3], s_pc[3]));
-    out.push_str(&format!("  Protocol: {:.3} us (without precompute)\n", pc_proto));
-    out.push_str(&format!("  Total:    {:.3} us (with precompute)\n\n", pc_total));
+    out.push_str(&format!("  Protocol: {:.3} us (online cost, precompute done ahead)\n", pc_proto));
+    out.push_str(&format!("  Total:    {:.3} us (precompute time included)\n\n", pc_total));
     out.push_str("CPACE:\n");
     out.push_str(&format!("  Step 1:   {:.3} +/- {:.3} us\n", m_cp[0], s_cp[0]));
     out.push_str(&format!("  Step 2:   {:.3} +/- {:.3} us\n", m_cp[1], s_cp[1]));
@@ -232,8 +231,4 @@ fn main() {
         }
         logger.log(LoggingKeyword::BENCHMARK, "PAKE Protocol Comparison Benchmark completed");
     }
-
-    println!("Press Enter to exit...");
-    let mut buffer = String::new();
-    io::stdin().read_line(&mut buffer).unwrap();
 }

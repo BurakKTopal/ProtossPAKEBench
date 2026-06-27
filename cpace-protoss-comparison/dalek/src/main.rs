@@ -64,11 +64,6 @@ fn main() {
         logger.log(LoggingKeyword::INFO, &format!("Session key: {}", encode(k1)));
     }
 
-    // For Windows, prevent console from closing immediately
-    println!("\nPress Enter to exit...");
-    let mut buffer = String::new();
-    std::io::stdin().read_line(&mut buffer).unwrap();
-
     if let Ok(logger) = Logger::get_instance().lock() {
         logger.log(LoggingKeyword::INFO, "Protoss Protocol Demo Completed");
     }

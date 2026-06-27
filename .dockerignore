@@ -1,0 +1,22 @@
+# Build outputs and caches
+**/build/
+**/target/
+**/__pycache__/
+.venv/
+**/.venv/
+
+# Windows libsodium binaries (the image installs Linux libsodium)
+**/*.dll
+**/*.exe
+**/*.pdb
+**/external/libsodium-bin/Win32/
+**/external/libsodium-bin/x64/
+
+# Existing result files and local outputs
+**/benchmark_results/
+**/logs/
+out/
+
+# VCS and editor
+.git/
+.gitignore

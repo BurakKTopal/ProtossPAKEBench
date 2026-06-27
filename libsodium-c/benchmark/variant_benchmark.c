@@ -407,6 +407,5 @@ int main(int argc, char *argv[])
     free(pc_precomp); free(pc_init); free(pc_rspder); free(pc_der);
 
     logger_flush();
-    system("pause");
     return 0;
 }

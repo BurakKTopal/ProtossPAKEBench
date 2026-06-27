@@ -338,6 +338,5 @@ int main(int argc, char *argv[])
 
     printf("\nBenchmark results saved to benchmark_results/sodium/%s\n", filename);
     logger_flush();
-    system("pause");
     return 0;
 }

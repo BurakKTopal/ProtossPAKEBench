@@ -56,7 +56,7 @@ pub fn precomputed_init(
     state.i = state.public_point + state.v;
     state.i
 }
-ç
+
 // Response and key derivation (Step 2): uses precomputed scalar and public_point, returns R and K
 pub fn precomputed_rsp_der(
     state: &mut ProtossPrecomputedState,

@@ -189,6 +189,5 @@ int main(int argc, char *argv[])
     logger.log_to_file(filename.str(), ss.str());
     std::cout << "\nBenchmark results saved to benchmark_results/sodium/" << filename.str() << std::endl;
 
-    system("pause");
     return 0;
 }

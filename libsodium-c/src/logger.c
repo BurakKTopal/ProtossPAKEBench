@@ -3,7 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+#ifdef _WIN32
 #include <direct.h>
+#define make_dir(path) _mkdir(path)
+#else
+#include <sys/stat.h>
+#define make_dir(path) mkdir(path, 0777)
+#endif
 
 #define MAX_LOGS 2000
 #define MAX_LOG_ENTRY_LEN 1024
@@ -54,8 +61,8 @@ void logger_log(LoggingKeyword keyword, const char *description)
 
 void logger_log_to_file(const char *filename, const char *content)
 {
-    _mkdir("benchmark_results");
-    _mkdir("benchmark_results/sodium");
+    make_dir("benchmark_results");
+    make_dir("benchmark_results/sodium");
 
     char path[512];
     snprintf(path, sizeof(path), "benchmark_results/sodium/%s", filename);
@@ -69,8 +76,8 @@ void logger_log_to_file(const char *filename, const char *content)
 
 void logger_flush(void)
 {
-    _mkdir("logs");
-    _mkdir("logs/sodium");
+    make_dir("logs");
+    make_dir("logs/sodium");
 
     char filename[256];
     time_t now = time(NULL);

@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 
 use std::time::{Duration, Instant};
-use std::io;
 use std::env;
 use chrono::Local;
 use protoss_rust::{
@@ -170,8 +169,4 @@ fn main() {
             println!("\nBenchmark results saved to benchmark_results/dalek/{}", filename);
         }
     }
-
-    println!("Press Enter to exit...");
-    let mut buffer = String::new();
-    io::stdin().read_line(&mut buffer).unwrap();
 }
