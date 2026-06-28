@@ -109,6 +109,7 @@ bool run_benchmark(int iterations, int run_id, bool is_warmup,
 
 int main(int argc, char *argv[])
 {
+    std::cout << std::unitbuf;
     Logger::get_instance().log(LoggingKeyword::BENCHMARK, "See the benchmark_results/sodium folder for the info of this run.");
     if (sodium_init() < 0)
     {

@@ -46,6 +46,7 @@ int run_benchmark(int iterations, int run_id, int is_warmup,
         printf("Warmup: Running Protoss protocol benchmark with %d iterations...\n", iterations);
     else
         printf("Run %d: Running Protoss protocol benchmark with %d iterations...\n", run_id, iterations);
+    fflush(stdout);
 
     // Configure test params
     const char *password = "SharedPassword";
@@ -116,6 +117,7 @@ int run_benchmark(int iterations, int run_id, int is_warmup,
 
 int main(int argc, char *argv[])
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
     logger_log(LOG_BENCHMARK, "See the benchmark_results/sodium folder for the info of this run.");
     if (sodium_init() < 0)
     {

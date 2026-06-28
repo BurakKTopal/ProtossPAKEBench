@@ -64,7 +64,7 @@ benchmark can be repeated across architectures with the same commands.
     # smoke test (seconds): confirms the pipeline works end to end
     docker run --rm -e ITERS=200 -e RUNS=2 -v "$PWD/out:/work/out" protoss-bench
 
-    # full campaign (default 100000 iterations x 50 runs)
+    # full campaign (default 100000 iterations x 10 runs)
     docker run --rm -v "$PWD/out:/work/out" protoss-bench
 
 Results are written to `out/<arch>_<timestamp>/`, one file per benchmark, alongside a `machine.txt`

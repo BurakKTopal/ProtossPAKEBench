@@ -16,6 +16,18 @@ static double timespec_diff_ns(struct timespec *start, struct timespec *end)
            (end->tv_nsec - start->tv_nsec);
 }
 
+// Print "[HH:MM:SS] Run r/N (elapsed Xs)" and flush, so progress is visible
+// per run even when stdout is piped. Printing is outside every timed region.
+static void print_run_progress(size_t run_id, size_t num_runs, time_t bench_start)
+{
+    time_t now = time(NULL);
+    struct tm *lt = localtime(&now);
+    printf("[%02d:%02d:%02d] Run %zu/%zu (elapsed %llds)\n",
+           lt->tm_hour, lt->tm_min, lt->tm_sec, run_id, num_runs,
+           (long long)(now - bench_start));
+    fflush(stdout);
+}
+
 static double calc_mean(double *values, int count)
 {
     double sum = 0.0;
@@ -213,6 +225,7 @@ static int run_rotated(size_t iterations, RunResult *out, int *mismatch)
 
 int main(int argc, char *argv[])
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
     size_t warmup_iterations = 5000;
     size_t benchmark_iterations = 50000;
     size_t num_runs = 10;
@@ -239,6 +252,7 @@ int main(int argc, char *argv[])
     int mismatch = 0;
 
     printf("Performing warm-up runs (%zu iterations)...\n", warmup_iterations);
+    fflush(stdout);
     {
         RunResult warm;
         run_rotated(warmup_iterations, &warm, &mismatch);
@@ -247,10 +261,11 @@ int main(int argc, char *argv[])
     printf("\nStarting main benchmark runs (%zu runs x %zu iterations)...\n", num_runs, benchmark_iterations);
 
     RunResult *runs = (RunResult *)malloc(num_runs * sizeof(RunResult));
+    time_t bench_start = time(NULL);
 
     for (size_t r = 0; r < num_runs; r++)
     {
-        printf("\n--- Run %zu of %zu ---\n", r + 1, num_runs);
+        print_run_progress(r + 1, num_runs, bench_start);
         if (run_rotated(benchmark_iterations, &runs[r], &mismatch) != 0)
         {
             fprintf(stderr, "Benchmark failed on run %zu\n", r + 1);

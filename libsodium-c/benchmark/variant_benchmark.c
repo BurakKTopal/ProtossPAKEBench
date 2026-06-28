@@ -16,6 +16,18 @@ static double timespec_diff_ms(struct timespec *start, struct timespec *end)
            (end->tv_nsec - start->tv_nsec) / 1e6;
 }
 
+// Print "[HH:MM:SS] Run r/N (elapsed Xs)" and flush, so progress is visible
+// per run even when stdout is piped. Printing is outside every timed region.
+static void print_run_progress(int run_id, int num_runs, time_t bench_start)
+{
+    time_t now = time(NULL);
+    struct tm *lt = localtime(&now);
+    printf("[%02d:%02d:%02d] Run %d/%d (elapsed %llds)\n",
+           lt->tm_hour, lt->tm_min, lt->tm_sec, run_id, num_runs,
+           (long long)(now - bench_start));
+    fflush(stdout);
+}
+
 static double calc_mean(double *values, int count)
 {
     double sum = 0.0;
@@ -236,6 +248,7 @@ static int run_rotated(int iterations,
 // ============================================================
 int main(int argc, char *argv[])
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
     logger_log(LOG_BENCHMARK, "See the benchmark_results/variants folder for the info of this run.");
 
     if (sodium_init() < 0)
@@ -285,10 +298,11 @@ int main(int argc, char *argv[])
     double *pc_der     = malloc(num_runs * sizeof(double));
 
     int mismatch = 0;
+    time_t bench_start = time(NULL);
 
     for (int r = 0; r < num_runs; r++)
     {
-        printf("Run %d/%d...\n", r + 1, num_runs);
+        print_run_progress(r + 1, num_runs, bench_start);
         if (run_rotated(iterations,
                         &bl_init[r], &bl_rspder[r], &bl_der[r],
                         &vl_init[r], &vl_rspder[r], &vl_der[r],

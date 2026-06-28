@@ -14,6 +14,19 @@ extern "C"
 {
 #include "crypto_cpace.h"
 }
+#include <ctime>
+
+// Print "[HH:MM:SS] Run r/N (elapsed Xs)" so progress is visible per run even
+// when stdout is piped. Printing is outside every timed region.
+static void print_run_progress(size_t run_id, size_t num_runs, std::time_t bench_start)
+{
+    std::time_t now = std::time(nullptr);
+    std::tm *lt = std::localtime(&now);
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d", lt->tm_hour, lt->tm_min, lt->tm_sec);
+    std::cout << "[" << buf << "] Run " << run_id << "/" << num_runs
+              << " (elapsed " << (long long)(now - bench_start) << "s)\n";
+}
 
 static double calc_mean(const std::vector<double> &values)
 {
@@ -173,6 +186,7 @@ static RunResult run_rotated(size_t iterations, bool &mismatch)
 
 int main(int argc, char *argv[])
 {
+    std::cout << std::unitbuf;
     size_t warmup_iterations = 5000;
     size_t benchmark_iterations = 50000;
     size_t num_runs = 10;
@@ -203,9 +217,10 @@ int main(int argc, char *argv[])
     std::cout << "\nStarting main benchmark runs (" << num_runs << " runs x " << benchmark_iterations << " iterations)...\n";
 
     std::vector<RunResult> runs;
+    std::time_t bench_start = std::time(nullptr);
     for (size_t r = 1; r <= num_runs; ++r)
     {
-        std::cout << "\n--- Run " << r << " of " << num_runs << " ---\n";
+        print_run_progress(r, num_runs, bench_start);
         runs.push_back(run_rotated(benchmark_iterations, mismatch));
     }
 

@@ -198,8 +198,11 @@ fn main() {
     let mut or: Vec<[f64; 3]> = Vec::new();
     let mut pc: Vec<[f64; 4]> = Vec::new();
 
+    let bench_start = Instant::now();
     for run in 0..num_runs {
-        println!("Run {}/{}...", run + 1, num_runs);
+        println!("Run {}/{} (elapsed {}s)", run + 1, num_runs, bench_start.elapsed().as_secs());
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
         let r = run_rotated(iterations, &mut mismatch);
         bl.push(r.bl);
         vl.push(r.vl);

@@ -12,6 +12,19 @@
 #include "protoss_orchestrated.hpp"
 #include "protoss_precomputed.hpp"
 #include "logger.hpp"
+#include <ctime>
+
+// Print "[HH:MM:SS] Run r/N (elapsed Xs)" so progress is visible per run even
+// when stdout is piped. Printing is outside every timed region.
+static void print_run_progress(int run_id, int num_runs, std::time_t bench_start)
+{
+    std::time_t now = std::time(nullptr);
+    std::tm *lt = std::localtime(&now);
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d", lt->tm_hour, lt->tm_min, lt->tm_sec);
+    std::cout << "[" << buf << "] Run " << run_id << "/" << num_runs
+              << " (elapsed " << (long long)(now - bench_start) << "s)\n";
+}
 
 static double calc_mean(const std::vector<double> &values)
 {
@@ -179,6 +192,7 @@ int main(int argc, char *argv[])
     if (argc >= 3)
         num_runs = std::atoi(argv[2]);
 
+    std::cout << std::unitbuf;
     std::cout << "Protoss Protocol Variant Comparison Benchmark\n";
     std::cout << "==============================================\n";
     std::cout << "Config: " << iterations << " iterations x " << num_runs << " runs (iteration-level rotation)\n\n";
@@ -194,9 +208,10 @@ int main(int argc, char *argv[])
     std::vector<double> or_init, or_rspder, or_der;
     std::vector<double> pc_precompute, pc_init, pc_rspder, pc_der;
 
+    std::time_t bench_start = std::time(nullptr);
     for (int run = 0; run < num_runs; ++run)
     {
-        std::cout << "Run " << (run + 1) << "/" << num_runs << "...\n";
+        print_run_progress(run + 1, num_runs, bench_start);
         RunResult r = run_rotated(iterations, mismatch);
         bl_init.push_back(r.bl_init); bl_rspder.push_back(r.bl_rspder); bl_der.push_back(r.bl_der);
         vl_init.push_back(r.vl_init); vl_rspder.push_back(r.vl_rspder); vl_der.push_back(r.vl_der);

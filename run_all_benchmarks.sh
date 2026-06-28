@@ -5,13 +5,13 @@
 # architecture-tagged directory under OUT_DIR.
 #
 # Config (override via env):
-#   ITERS, RUNS   benchmark size (default 100000 x 50)
+#   ITERS, RUNS   benchmark size (default 100000 x 10)
 #   OUT_DIR       output root (default ./out)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 ITERS="${ITERS:-100000}"
-RUNS="${RUNS:-50}"
+RUNS="${RUNS:-10}"
 OUT_DIR="${OUT_DIR:-$ROOT/out}"
 
 ARCH="$(uname -m)"
@@ -112,6 +112,7 @@ gcc $C_FLAGS $SODIUM_CFLAGS -I"$C/src" \
     $SODIUM_LIBS -lm -o "$C/build/variant_benchmark"
 stage "Running C per-phase and variants"
 run_step "C per-phase"  bash -c "cd '$C' && ./build/benchmark '$ITERS' '$RUNS'"
+collect_results "c_perphase_variants" "$C/benchmark_results"
 run_step "C variants"   bash -c "cd '$C' && ./build/variant_benchmark '$ITERS' '$RUNS'"
 collect_results "c_perphase_variants" "$C/benchmark_results"
 
@@ -128,6 +129,7 @@ g++ $CXX_FLAGS $SODIUM_CFLAGS -I"$CPP/src" \
     $SODIUM_LIBS -o "$CPP/build/variant_benchmark"
 stage "Running C++ per-phase and variants"
 run_step "C++ per-phase"  bash -c "cd '$CPP' && ./build/benchmark '$ITERS' '$RUNS'"
+collect_results "cpp_perphase_variants" "$CPP/benchmark_results"
 run_step "C++ variants"   bash -c "cd '$CPP' && ./build/variant_benchmark '$ITERS' '$RUNS'"
 collect_results "cpp_perphase_variants" "$CPP/benchmark_results"
 
@@ -136,13 +138,16 @@ stage "Building Rust main impl"
 ( cd "$ROOT/dalek-rust" && cargo build --release )
 stage "Running Rust per-phase and variants"
 run_step "Rust per-phase"  bash -c "cd '$ROOT/dalek-rust' && ./target/release/benchmark '$ITERS' '$RUNS'"
+collect_results "rust_perphase_variants" "$ROOT/dalek-rust/build/benchmark_results"
 run_step "Rust variants"   bash -c "cd '$ROOT/dalek-rust' && ./target/release/variant_benchmark '$ITERS' '$RUNS'"
 collect_results "rust_perphase_variants" "$ROOT/dalek-rust/build/benchmark_results"
 
 # --- Python (per-phase + variants) ---
+# python3 -u keeps stdout unbuffered so per-run progress appears live in the log.
 stage "Running Python per-phase and variants"
-run_step "Python per-phase"  bash -c "cd '$ROOT/python' && PYTHONPATH=src python3 benchmark/timing_benchmark.py '$ITERS' '$RUNS'"
-run_step "Python variants"   bash -c "cd '$ROOT/python' && PYTHONPATH=src python3 benchmark/variant_benchmark.py '$ITERS' '$RUNS'"
+run_step "Python per-phase"  bash -c "cd '$ROOT/python' && PYTHONPATH=src python3 -u benchmark/timing_benchmark.py '$ITERS' '$RUNS'"
+collect_results "python_perphase_variants" "$ROOT/python/build/benchmark_results"
+run_step "Python variants"   bash -c "cd '$ROOT/python' && PYTHONPATH=src python3 -u benchmark/variant_benchmark.py '$ITERS' '$RUNS'"
 collect_results "python_perphase_variants" "$ROOT/python/build/benchmark_results"
 
 # --- Protoss vs CPace comparison (C, C++, Rust) ---

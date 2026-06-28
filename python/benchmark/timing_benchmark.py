@@ -14,7 +14,8 @@ from protoss_protocol import (
 
 def run_benchmark(iterations: int, run_id: int = 1, is_warmup: bool = False) -> Optional[Tuple[float, float, float]]:
     prefix = "Warmup" if is_warmup else f"Run {run_id}"
-    print(f"{prefix}: Running Protoss protocol benchmark with {iterations} iterations...")
+    ts = datetime.datetime.now().strftime("%H:%M:%S")
+    print(f"[{ts}] {prefix}: Running Protoss protocol benchmark with {iterations} iterations...", flush=True)
 
     # Configure test params
     password = "SharedPassword"

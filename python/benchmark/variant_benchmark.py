@@ -136,13 +136,15 @@ def main():
 
     mismatch = False
 
-    print("Performing warmup...")
+    print("Performing warmup...", flush=True)
     run_rotated(100)
-    print("Warmup complete.\n")
+    print("Warmup complete.\n", flush=True)
 
     runs = {k: [] for k in KEYS}
+    bench_start = time.time()
     for r in range(num_runs):
-        print(f"Run {r + 1}/{num_runs}...")
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        print(f"[{ts}] Run {r + 1}/{num_runs} (elapsed {int(time.time() - bench_start)}s)", flush=True)
         result, mm = run_rotated(iterations)
         mismatch = mismatch or mm
         for k in KEYS:
