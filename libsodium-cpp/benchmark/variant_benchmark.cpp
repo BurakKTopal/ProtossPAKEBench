@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
     bool mismatch = false;
 
     std::cout << "Performing warmup...\n";
-    run_rotated(100, mismatch);
+    run_rotated(5000, mismatch);
     std::cout << "Warmup complete.\n\n";
 
     std::vector<double> bl_init, bl_rspder, bl_der;

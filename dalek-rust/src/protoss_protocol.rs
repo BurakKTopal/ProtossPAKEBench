@@ -178,9 +178,9 @@ mod tests {
     #[test]
     fn test_protoss_protocol() {
         // Initialize inputs
-        let password = "my_secure_password";
-        let p_i = [1u8; SESSION_ID_BYTES];
-        let mut p_j = [2u8; SESSION_ID_BYTES];
+        let password = "SharedPassword";
+        let p_i = [0x01u8; SESSION_ID_BYTES];
+        let mut p_j = [0x02u8; SESSION_ID_BYTES];
 
         // Step 1: Init
         let init_result = init(password, &p_i, &mut p_j).unwrap();

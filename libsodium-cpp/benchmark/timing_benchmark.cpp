@@ -45,8 +45,8 @@ bool run_benchmark(int iterations, int run_id, bool is_warmup,
 
     // Configure test params
     std::string password = "SharedPassword";
-    std::vector<unsigned char> P_i = {0x00};
-    std::vector<unsigned char> P_j = {0x01};
+    std::vector<unsigned char> P_i(16, 0x01);
+    std::vector<unsigned char> P_j(16, 0x02);
 
     // Initialize timing variables
     auto init_time = std::chrono::duration<double>::zero();
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
     // First run a warmup to avoid cold-start effects
     std::cout << "Performing warmup runs..." << std::endl;
     double dummy_init, dummy_rspder, dummy_der;
-    run_benchmark(100, 0, true, dummy_init, dummy_rspder, dummy_der);
+    run_benchmark(5000, 0, true, dummy_init, dummy_rspder, dummy_der);
 
     // Run the benchmark multiple times to average out external variability
     std::cout << "\nRunning main benchmark (" << num_runs << " runs x " << iterations << " iterations)..." << std::endl;

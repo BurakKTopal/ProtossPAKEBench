@@ -51,8 +51,14 @@ static double calc_stddev(double *values, int count)
 }
 
 static const char *g_password = "SharedPassword";
-static unsigned char g_P_i[] = {0x00};
-static unsigned char g_P_j[] = {0x01};
+static unsigned char g_P_i[16];
+static unsigned char g_P_j[16];
+
+static void init_inputs(void)
+{
+    memset(g_P_i, 0x01, sizeof(g_P_i));
+    memset(g_P_j, 0x02, sizeof(g_P_j));
+}
 
 // ============================================================
 // Per-iteration timing functions
@@ -69,13 +75,13 @@ static int bench_baseline_once(double *init_t, double *rspder_t, double *der_t, 
     size_t pw = strlen(g_password);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    if (Init(&res_init, g_password, pw, g_P_i, 1, g_P_j, 1) != 0)
+    if (Init(&res_init, g_password, pw, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j)) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
     *init_t += timespec_diff_ms(&start, &end);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    if (RspDer(&res_rspder, g_password, pw, g_P_i, 1, g_P_j, 1, res_init.I) != 0)
+    if (RspDer(&res_rspder, g_password, pw, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j), res_init.I) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
     *rspder_t += timespec_diff_ms(&start, &end);
@@ -100,13 +106,13 @@ static int bench_validated_once(double *init_t, double *rspder_t, double *der_t,
     size_t pw = strlen(g_password);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    if (validated_Init(&res_init, g_password, pw, g_P_i, 1, g_P_j, 1) != 0)
+    if (validated_Init(&res_init, g_password, pw, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j)) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
     *init_t += timespec_diff_ms(&start, &end);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    if (validated_RspDer(&res_rspder, g_password, pw, g_P_i, 1, g_P_j, 1, res_init.I) != 0)
+    if (validated_RspDer(&res_rspder, g_password, pw, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j), res_init.I) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
     *rspder_t += timespec_diff_ms(&start, &end);
@@ -132,8 +138,8 @@ static int bench_orchestrated_once(double *init_t, double *rspder_t, double *der
     struct timespec start, end;
     size_t pw = strlen(g_password);
 
-    protoss_orchestrated_state_create(&init_state, g_P_i, 1, g_P_j, 1);
-    protoss_orchestrated_state_create(&rsp_state, g_P_i, 1, g_P_j, 1);
+    protoss_orchestrated_state_create(&init_state, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j));
+    protoss_orchestrated_state_create(&rsp_state, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j));
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     if (orchestrated_Init(I_out, &init_state, g_password, pw) != 0)
@@ -172,9 +178,9 @@ static int bench_precomputed_once(double *precompute_t, double *init_t, double *
     size_t pw = strlen(g_password);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    if (protoss_precomputed_state_create(&init_state, g_P_i, 1, g_P_j, 1) != 0)
+    if (protoss_precomputed_state_create(&init_state, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j)) != 0)
         return -1;
-    if (protoss_precomputed_state_create(&rsp_state, g_P_i, 1, g_P_j, 1) != 0)
+    if (protoss_precomputed_state_create(&rsp_state, g_P_i, sizeof(g_P_i), g_P_j, sizeof(g_P_j)) != 0)
         return -1;
     clock_gettime(CLOCK_MONOTONIC, &end);
     *precompute_t += timespec_diff_ms(&start, &end);
@@ -257,6 +263,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    init_inputs();
+
     int iterations = 10000;
     int num_runs = 10;
 
@@ -273,7 +281,7 @@ int main(int argc, char *argv[])
     printf("Performing warmup...\n");
     {
         double d[14]; int dm = 0;
-        run_rotated(100,
+        run_rotated(5000,
                     &d[0], &d[1], &d[2], &d[3], &d[4], &d[5], &d[6], &d[7], &d[8],
                     &d[9], &d[10], &d[11], &d[12], &dm);
     }

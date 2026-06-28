@@ -44,8 +44,8 @@ ReturnTypeInit Init(const std::string &password, const std::vector<unsigned char
     if (crypto_core_ristretto255_add(I.data(), X.data(), V.data()) != 0)
         throw std::runtime_error("crypto_core_ristretto255_add failed");
 
-    ProtossState *state = new ProtossState(x, I, P_i, P_j, V);
-    return ReturnTypeInit(I, *state);
+    ProtossState state(x, I, P_i, P_j, V);
+    return ReturnTypeInit(I, state);
 }
 
 ReturnTypeRspDer RspDer(const std::string &password, const std::vector<unsigned char> &P_i, std::vector<unsigned char> &P_j, std::vector<unsigned char> I)
@@ -88,11 +88,11 @@ ReturnTypeRspDer RspDer(const std::string &password, const std::vector<unsigned 
     return ReturnTypeRspDer(R, K);
 }
 
-std::vector<unsigned char> Der(ProtossState protoss_state, std::vector<unsigned char> R)
+std::vector<unsigned char> Der(const ProtossState &protoss_state, const std::vector<unsigned char> &R)
 {
 
     // Gets state vars
-    auto &[x, I, P_i, P_j, V] = protoss_state;
+    const auto &[x, I, P_i, P_j, V] = protoss_state;
 
     // Calculate Y' = R/V ~> R - V because R and V are elliptic curve points
     std::vector<unsigned char> Y_prime(POINT_LEN);

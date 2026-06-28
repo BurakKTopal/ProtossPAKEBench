@@ -28,8 +28,8 @@ struct ProtossState
 struct ReturnTypeInit
 {
     std::vector<unsigned char> I;
-    ProtossState &protoss_state;
-    ReturnTypeInit(const std::vector<unsigned char> &I, ProtossState &protoss_state)
+    ProtossState protoss_state;
+    ReturnTypeInit(const std::vector<unsigned char> &I, const ProtossState &protoss_state)
         : I(I), protoss_state(protoss_state) {}
 };
 
@@ -63,7 +63,7 @@ ReturnTypeRspDer RspDer(const std::string &password,
                         std::vector<unsigned char> I);
 
 // Key derivation (Step 3)
-std::vector<unsigned char> Der(ProtossState protoss_state,
-                               std::vector<unsigned char> R);
+std::vector<unsigned char> Der(const ProtossState &protoss_state,
+                               const std::vector<unsigned char> &R);
 
 #endif // PROTOSS_PROTOCOL_HPP

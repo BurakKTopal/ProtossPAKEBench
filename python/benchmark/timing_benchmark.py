@@ -19,8 +19,8 @@ def run_benchmark(iterations: int, run_id: int = 1, is_warmup: bool = False) -> 
 
     # Configure test params
     password = "SharedPassword"
-    P_i = b'\x00'
-    P_j = b'\x01'
+    P_i = bytes([0x01] * 16)
+    P_j = bytes([0x02] * 16)
 
     # Initialize timing lists
     init_times = []
@@ -90,7 +90,7 @@ def main():
 
     # First run a warmup to avoid cold-start effects
     print("Performing warmup runs...")
-    run_benchmark(100, is_warmup=True)
+    run_benchmark(5000, is_warmup=True)
 
     # Run the benchmark multiple times to average out external variability
     print(f"\nRunning main benchmark ({num_runs} runs x {iterations} iterations)...")

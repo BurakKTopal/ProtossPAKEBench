@@ -190,7 +190,7 @@ fn main() {
     let mut mismatch = false;
 
     println!("Performing warmup...");
-    run_rotated(100, &mut mismatch);
+    run_rotated(5000, &mut mismatch);
     println!("Warmup complete.\n");
 
     let mut bl: Vec<[f64; 3]> = Vec::new();

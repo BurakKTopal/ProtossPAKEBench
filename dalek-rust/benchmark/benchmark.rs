@@ -29,8 +29,8 @@ fn run_benchmark(iterations: usize, run_id: usize, is_warmup: bool) -> Option<(f
 
     // Configure test params
     let password = "SharedPassword";
-    let p_i = [0u8; SESSION_ID_BYTES];
-    let mut p_j = [1u8; SESSION_ID_BYTES];
+    let p_i = [0x01u8; SESSION_ID_BYTES];
+    let mut p_j = [0x02u8; SESSION_ID_BYTES];
 
     // Initialize timing variables
     let mut init_time = Duration::new(0, 0);
@@ -103,7 +103,7 @@ fn main() {
 
     // First run a warmup to avoid cold-start effects
     println!("Performing warmup runs...");
-    run_benchmark(10, 0, true);
+    run_benchmark(5000, 0, true);
 
     // Run the benchmark multiple times to average out external variability
     println!("\nRunning main benchmark ({} runs x {} iterations)...", num_runs, iterations);

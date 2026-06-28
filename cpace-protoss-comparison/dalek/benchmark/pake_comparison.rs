@@ -168,7 +168,8 @@ fn main() {
     let mut runs: Vec<RunResult> = Vec::new();
     let bench_start = Instant::now();
     for r in 1..=num_runs {
-        println!("--- Run {} of {} (elapsed {}s) ---", r, num_runs, bench_start.elapsed().as_secs());
+        println!("[{}] Run {}/{} (elapsed {}s)",
+                 Local::now().format("%H:%M:%S"), r, num_runs, bench_start.elapsed().as_secs());
         use std::io::Write;
         let _ = std::io::stdout().flush();
         runs.push(run_rotated(benchmark_iterations, &mut mismatch));

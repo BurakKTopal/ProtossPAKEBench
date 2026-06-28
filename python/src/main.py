@@ -5,8 +5,8 @@ def main():
     print("Starting Protoss protocol...")
     logger = Logger.get_instance()
     password = "SharedPassword"
-    P_i = b'\x00'
-    P_j = b'\x01'
+    P_i = bytes([0x01] * 16)
+    P_j = bytes([0x02] * 16)
 
     try:
         print("Step 1: Init phase...")

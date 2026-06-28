@@ -50,8 +50,9 @@ int run_benchmark(int iterations, int run_id, int is_warmup,
 
     // Configure test params
     const char *password = "SharedPassword";
-    unsigned char P_i[] = {0x00};
-    unsigned char P_j[] = {0x01};
+    unsigned char P_i[16], P_j[16];
+    memset(P_i, 0x01, sizeof(P_i));
+    memset(P_j, 0x02, sizeof(P_j));
 
     // Initialize timing variables
     double init_time = 0.0;
@@ -68,7 +69,7 @@ int run_benchmark(int iterations, int run_id, int is_warmup,
 
         // Time Init step
         clock_gettime(CLOCK_MONOTONIC, &start);
-        if (Init(&res_init, password, strlen(password), P_i, 1, P_j, 1) != 0)
+        if (Init(&res_init, password, strlen(password), P_i, sizeof(P_i), P_j, sizeof(P_j)) != 0)
         {
             fprintf(stderr, "ERROR: Init failed at iteration %d\n", i);
             return -1;
@@ -79,7 +80,7 @@ int run_benchmark(int iterations, int run_id, int is_warmup,
         // Time RspDer step
         clock_gettime(CLOCK_MONOTONIC, &start);
         if (RspDer(&res_rspder, password, strlen(password),
-                   P_i, 1, P_j, 1, res_init.I) != 0)
+                   P_i, sizeof(P_i), P_j, sizeof(P_j), res_init.I) != 0)
         {
             fprintf(stderr, "ERROR: RspDer failed at iteration %d\n", i);
             return -1;
@@ -141,7 +142,7 @@ int main(int argc, char *argv[])
     // First run a warmup to avoid cold-start effects
     printf("Performing warmup runs...\n");
     double dummy_init, dummy_rspder, dummy_der;
-    run_benchmark(100, 0, 1, &dummy_init, &dummy_rspder, &dummy_der);
+    run_benchmark(5000, 0, 1, &dummy_init, &dummy_rspder, &dummy_der);
 
     // Run the benchmark multiple times to average out external variability
     printf("\nRunning main benchmark (%d runs x %d iterations)...\n", num_runs, iterations);

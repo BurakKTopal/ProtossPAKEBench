@@ -11,8 +11,8 @@ int main()
 
     Logger &logger = Logger::get_instance();
     std::string password = "SharedPassword";
-    std::vector<unsigned char> P_i = {0x00};
-    std::vector<unsigned char> P_j = {0x01};
+    std::vector<unsigned char> P_i(16, 0x01);
+    std::vector<unsigned char> P_j(16, 0x02);
 
     try
     {

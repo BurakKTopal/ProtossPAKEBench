@@ -14,15 +14,16 @@ int main(void)
     }
 
     const char *password = "SharedPassword";
-    unsigned char P_i[] = {0x00};
-    unsigned char P_j[] = {0x01};
+    unsigned char P_i[16], P_j[16];
+    memset(P_i, 0x01, sizeof(P_i));
+    memset(P_j, 0x02, sizeof(P_j));
 
     ReturnTypeInit res_init;
     ReturnTypeRspDer res_rspder;
     unsigned char session_key_i[PROTOSS_SESSION_KEY_LEN];
 
     logger_log(LOG_INFO, "Step One Execution - Init");
-    if (Init(&res_init, password, strlen(password), P_i, 1, P_j, 1) != 0)
+    if (Init(&res_init, password, strlen(password), P_i, sizeof(P_i), P_j, sizeof(P_j)) != 0)
     {
         logger_log(LOG_ERROR, "Init failed");
         logger_flush();
@@ -31,7 +32,7 @@ int main(void)
 
     logger_log(LOG_INFO, "Step Two Execution - RspDer");
     if (RspDer(&res_rspder, password, strlen(password),
-               P_i, 1, P_j, 1, res_init.I) != 0)
+               P_i, sizeof(P_i), P_j, sizeof(P_j), res_init.I) != 0)
     {
         logger_log(LOG_ERROR, "RspDer failed");
         logger_flush();

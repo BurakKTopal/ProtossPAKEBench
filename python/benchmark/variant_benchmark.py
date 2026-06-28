@@ -137,7 +137,7 @@ def main():
     mismatch = False
 
     print("Performing warmup...", flush=True)
-    run_rotated(100)
+    run_rotated(5000)
     print("Warmup complete.\n", flush=True)
 
     runs = {k: [] for k in KEYS}
